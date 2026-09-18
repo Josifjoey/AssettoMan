@@ -22,7 +22,7 @@ router.get('/site', async (req, res) => {
 // GET /api/public/servers — public servers with live status
 router.get('/servers', async (req, res) => {
   const db = await getDb();
-  const rows = await db.all('SELECT id, name, type, ports, config, public_blurb FROM servers WHERE is_public = 1 ORDER BY created_at');
+  const rows = await db.all('SELECT id, name, type, ports, config, public_blurb, container_name, container_id FROM servers WHERE is_public = 1 ORDER BY created_at');
   const servers = [];
   for (const row of rows) {
     const cfg = JSON.parse(row.config || '{}');

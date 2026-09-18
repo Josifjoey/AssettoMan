@@ -133,6 +133,10 @@ router.put('/:id/config', async (req, res) => {
 
   const merged = { ...server.config, ...(config || {}) };
   if (steam?.username !== undefined) merged.steam = steam;
+  // Never persist the masked placeholder sent back to clients — restore real creds.
+  if (merged.steam && (merged.steam.password === '•••' || merged.steam.username === '•••')) {
+    merged.steam = server.config.steam;
+  }
   const mergedPorts = { ...server.ports, ...(ports || {}) };
 
   const updated = { ...server, config: merged, ports: mergedPorts };
