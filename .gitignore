@@ -1,0 +1,9 @@
+node_modules/
+server/node_modules/
+server/data/
+dist/
+.env
+.env.*
+*.log
+.DS_Store
+.kilo/

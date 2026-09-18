@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>AssettoMan</Name>
+  <Repository>ghcr.io/josifjoey/assettoman:latest</Repository>
+  <Registry>ghcr.io</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Josifjoey/AssettoMan</Support>
+  <Project>https://github.com/Josifjoey/AssettoMan</Project>
+  <Overview>Assetto Corsa / Assetto Corsa Competizione dedicated server manager. Manages game server containers via the Docker socket, with full config UIs, mod hosting and a public community page.</Overview>
+  <Category>GameServers:</Category>
+  <WebUI>http://[IP]:[PORT:3010]</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/Josifjoey/AssettoMan/main/public/logo.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Login to ghcr.io first: docker login ghcr.io -u Josifjoey</Requires>
+  <Config Name="Web UI Port" Target="3010" Default="3010" Mode="tcp" Description="Container Port: 3010" Type="Port" Display="always" Required="true" Mask="false">3010</Config>
+  <Config Name="Data" Target="/app/server/data" Default="/mnt/user/appdata/assettoman/data" Mode="rw" Description="SQLite database, server files, mods and uploads" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/assettoman/data</Config>
+  <Config Name="Docker Socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Required — lets AssettoMan create and control game server containers" Type="Path" Display="always" Required="true" Mask="false">/var/run/docker.sock</Config>
+  <Config Name="HOST_DATA_DIR" Target="HOST_DATA_DIR" Default="/mnt/user/appdata/assettoman/data" Mode="" Description="Host path matching the Data volume above (used for game container bind mounts)" Type="Variable" Display="always" Required="true" Mask="false">/mnt/user/appdata/assettoman/data</Config>
+  <Config Name="NODE_ENV" Target="NODE_ENV" Default="production" Mode="" Description="Production mode" Type="Variable" Display="always" Required="true" Mask="false">production</Config>
+  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Mode="" Description="JWT signing secret (openssl rand -hex 32)" Type="Variable" Display="always" Required="true" Mask="true">CHANGE_ME_TO_RANDOM_STRING</Config>
+  <Config Name="GAME_HOST" Target="GAME_HOST" Default="" Mode="" Description="Unraid host IP (fallback for querying AC server HTTP status API)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="COOKIE_SECURE" Target="COOKIE_SECURE" Default="false" Mode="" Description="Set true when serving over HTTPS (e.g. via Cloudflare Tunnel)" Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>
