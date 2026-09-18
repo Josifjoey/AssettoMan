@@ -12,7 +12,7 @@
   <Category>GameServers:</Category>
   <WebUI>http://[IP]:[PORT:3010]</WebUI>
   <TemplateURL/>
-  <Icon>https://raw.githubusercontent.com/Josifjoey/AssettoMan/main/public/logo.png</Icon>
+  <Icon>https://raw.githubusercontent.com/Josifjoey/AssettoMan/main/public/logo.svg</Icon>
   <ExtraParams>--restart=unless-stopped</ExtraParams>
   <PostArgs/>
   <CPUset/>
