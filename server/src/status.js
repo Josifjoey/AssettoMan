@@ -1,4 +1,5 @@
 import { inspectContainer } from './docker.js';
+import { localStatus } from './local.js';
 
 // Live status per server: container state + (for AC) the built-in HTTP API
 // which reports track, connected clients and more.
@@ -49,6 +50,35 @@ export async function getServerStatus(server) {
 }
 
 async function computeStatus(server) {
+  // Local runtime — game exe runs as a child process on this machine.
+  if (server.runtime === 'local') {
+    const st = localStatus(server);
+    const base = {
+      state: st.running ? 'running' : 'stopped',
+      running: st.running,
+      pid: st.pid,
+      startedAt: st.startedAt,
+      players: null,
+      maxPlayers: null,
+      track: trackFromConfig(server),
+    };
+    if (st.running && server.type !== 'acc') {
+      const cfg = typeof server.config === 'string' ? JSON.parse(server.config) : server.config;
+      const httpPort = server.ports?.http || cfg?.ports?.http || 8081;
+      const info = await fetchJson(`http://127.0.0.1:${httpPort}/INFO`);
+      if (info) {
+        base.players = info.clients ?? info.Clients ?? null;
+        base.maxPlayers = info.maxclients ?? info.maxClients ?? null;
+        if (info.track) base.track = info.track;
+        if (info.name) base.serverName = info.name;
+        base.apiReachable = true;
+      } else {
+        base.apiReachable = false;
+      }
+    }
+    return base;
+  }
+
   const containerRef = server.container_id || server.container_name;
   if (!containerRef) {
     return { state: 'not_provisioned', running: false, players: null, maxPlayers: null, track: trackFromConfig(server) };

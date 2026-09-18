@@ -32,8 +32,11 @@ export interface GameServer {
   id: string;
   name: string;
   type: 'ac' | 'ac_modded' | 'acc';
+  runtime?: 'docker' | 'local';
   container_name?: string;
   container_id?: string;
+  exePath?: string;
+  exePresent?: boolean;
   ports: { game: number; http?: number };
   config: any;
   data_dir: string;

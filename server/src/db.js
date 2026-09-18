@@ -54,6 +54,7 @@ async function migrate(db) {
       data_dir TEXT,
       is_public INTEGER NOT NULL DEFAULT 1,
       public_blurb TEXT,
+      runtime TEXT NOT NULL DEFAULT 'docker',
       status TEXT NOT NULL DEFAULT 'created',
       last_error TEXT,
       created_by TEXT,
@@ -90,6 +91,12 @@ async function migrate(db) {
       created_at TEXT NOT NULL
     );
   `);
+
+  // Additive column migrations for existing databases
+  const cols = await db.all('PRAGMA table_info(servers)');
+  if (!cols.some((c) => c.name === 'runtime')) {
+    await db.exec("ALTER TABLE servers ADD COLUMN runtime TEXT NOT NULL DEFAULT 'docker'");
+  }
 }
 
 export async function getSetting(key, fallback = null) {

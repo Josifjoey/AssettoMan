@@ -10,6 +10,7 @@ import {
   dockerAvailable, createContainer, inspectContainer,
   startContainer, stopContainer, restartContainer, removeContainer, containerLogs,
 } from '../docker.js';
+import { localExePath, localExePresent, localStart, localStop, localRestart, localLogs } from '../local.js';
 import { writeAcConfigs, listInstalledContent } from '../configAc.js';
 import { writeAccConfigs, readAccConfigs, accServerExePresent } from '../configAcc.js';
 import { getServerStatus, invalidateStatus } from '../status.js';
@@ -58,10 +59,13 @@ router.get('/meta', (req, res) => {
 
 // POST /api/servers — create a new managed server
 router.post('/', async (req, res) => {
-  const { name, type, ports, steam, isPublic, publicBlurb } = req.body || {};
+  const { name, type, ports, steam, isPublic, publicBlurb, runtime } = req.body || {};
   if (!name || !VALID_TYPES.includes(type)) {
     return res.status(400).json({ error: `name and type (${VALID_TYPES.join('/')}) required` });
   }
+  const finalRuntime = ['docker', 'local'].includes(runtime)
+    ? runtime
+    : (process.platform === 'win32' ? 'local' : 'docker');
 
   const db = await getDb();
   const id = crypto.randomUUID();
@@ -75,7 +79,8 @@ router.post('/', async (req, res) => {
     id,
     name,
     type,
-    container_name: `assettoman-${type}-${id.slice(0, 8)}`,
+    runtime: finalRuntime,
+    container_name: finalRuntime === 'docker' ? `assettoman-${type}-${id.slice(0, 8)}` : null,
     ports: finalPorts,
     config,
     data_dir: path.join(SERVERS_DIR, id),
@@ -84,11 +89,12 @@ router.post('/', async (req, res) => {
   writeConfigsFor(server);
 
   const now = new Date().toISOString();
+  const status = finalRuntime === 'local' ? 'provisioned' : 'created';
   await db.run(
-    `INSERT INTO servers (id, name, type, container_name, image, ports, config, data_dir, is_public, public_blurb, status, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?)`,
-    id, name, type, server.container_name, null, JSON.stringify(finalPorts), JSON.stringify(config),
-    server.data_dir, isPublic === false ? 0 : 1, publicBlurb || '', req.user.id, now, now
+    `INSERT INTO servers (id, name, type, runtime, container_name, image, ports, config, data_dir, is_public, public_blurb, status, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, name, type, finalRuntime, server.container_name, null, JSON.stringify(finalPorts), JSON.stringify(config),
+    server.data_dir, isPublic === false ? 0 : 1, publicBlurb || '', status, req.user.id, now, now
   );
   await audit(req.user.id, req.user.username, 'server_created', `${name} (${type})`);
   const row = await db.get('SELECT * FROM servers WHERE id = ?', id);
@@ -115,6 +121,10 @@ router.get('/:id', async (req, res) => {
     server.cfgOnDisk = readAccConfigs(server.data_dir);
   } else {
     server.installed = listInstalledContent(server.data_dir);
+  }
+  if (server.runtime === 'local') {
+    server.exePath = localExePath(server);
+    server.exePresent = localExePresent(server);
   }
   if (server.config?.steam) server.config.steam = { username: server.config.steam.username ? '•••' : '', password: server.config.steam.password ? '•••' : '' };
   res.json({ server });
@@ -153,10 +163,21 @@ router.put('/:id/config', async (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/servers/:id/provision — (re)create the docker container
+// POST /api/servers/:id/provision — (re)create the docker container, or for
+// local runtime just verify the game executable is in place
 router.post('/:id/provision', async (req, res) => {
   const server = await loadServer(req, res);
   if (!server) return;
+
+  if (server.runtime === 'local') {
+    if (!localExePresent(server)) {
+      return res.status(400).json({ error: `Executable not found — place it at ${localExePath(server)}` });
+    }
+    const db0 = await getDb();
+    await db0.run('UPDATE servers SET status = ?, updated_at = ? WHERE id = ?', 'provisioned', new Date().toISOString(), server.id);
+    return res.json({ ok: true });
+  }
+
   if (!(await dockerAvailable())) return res.status(503).json({ error: 'Docker socket not reachable — mount /var/run/docker.sock' });
 
   const db = await getDb();
@@ -177,14 +198,18 @@ router.post('/:id/provision', async (req, res) => {
   }
 });
 
-async function lifecycle(req, res, action, actionName) {
+async function lifecycle(req, res, localFn, dockerFn, actionName) {
   const server = await loadServer(req, res);
   if (!server) return;
-  const ref = server.container_id || server.container_name;
-  if (!ref) return res.status(409).json({ error: 'Server not provisioned yet' });
   const db = await getDb();
   try {
-    await action(ref);
+    if (server.runtime === 'local') {
+      await localFn(server);
+    } else {
+      const ref = server.container_id || server.container_name;
+      if (!ref) return res.status(409).json({ error: 'Server not provisioned yet' });
+      await dockerFn(ref);
+    }
     invalidateStatus(server.id);
     await audit(req.user.id, req.user.username, `server_${actionName}`, server.name);
     res.json({ ok: true });
@@ -193,9 +218,9 @@ async function lifecycle(req, res, action, actionName) {
   }
 }
 
-router.post('/:id/start', (req, res) => lifecycle(req, res, startContainer, 'start'));
-router.post('/:id/stop', (req, res) => lifecycle(req, res, (r) => stopContainer(r, 20), 'stop'));
-router.post('/:id/restart', (req, res) => lifecycle(req, res, restartContainer, 'restart'));
+router.post('/:id/start', (req, res) => lifecycle(req, res, localStart, startContainer, 'start'));
+router.post('/:id/stop', (req, res) => lifecycle(req, res, localStop, (r) => stopContainer(r, 20), 'stop'));
+router.post('/:id/restart', (req, res) => lifecycle(req, res, localRestart, restartContainer, 'restart'));
 
 // GET /api/servers/:id/status
 router.get('/:id/status', async (req, res) => {
@@ -208,9 +233,14 @@ router.get('/:id/status', async (req, res) => {
 router.get('/:id/logs', async (req, res) => {
   const server = await loadServer(req, res);
   if (!server) return;
-  const ref = server.container_id || server.container_name;
-  if (!ref) return res.status(409).json({ error: 'Server not provisioned' });
   try {
+    if (server.runtime === 'local') {
+      const full = localLogs(server);
+      const tail = Math.min(Number(req.query.tail) || 200, 1000);
+      return res.json({ logs: full.split('\n').slice(-tail).join('\n') });
+    }
+    const ref = server.container_id || server.container_name;
+    if (!ref) return res.status(409).json({ error: 'Server not provisioned' });
     const logs = await containerLogs(ref, Math.min(Number(req.query.tail) || 200, 1000));
     res.json({ logs });
   } catch (err) {
@@ -222,10 +252,14 @@ router.get('/:id/logs', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const server = await loadServer(req, res);
   if (!server) return;
-  const ref = server.container_id || server.container_name;
-  try {
-    if (ref && (await inspectContainer(ref))) await removeContainer(ref);
-  } catch { /* best effort */ }
+  if (server.runtime === 'local') {
+    try { localStop(server); } catch { /* best effort */ }
+  } else {
+    const ref = server.container_id || server.container_name;
+    try {
+      if (ref && (await inspectContainer(ref))) await removeContainer(ref);
+    } catch { /* best effort */ }
+  }
 
   const db = await getDb();
   await db.run('DELETE FROM servers WHERE id = ?', server.id);

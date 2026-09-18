@@ -65,6 +65,9 @@ export default function ServerDetailPage() {
 
   if (!server) return <div className="text-muted">{err || 'Loading…'}</div>;
   const running = !!server.live?.running;
+  const isLocal = server.runtime === 'local';
+  const exeMissing = isLocal && server.exePresent === false;
+  const canStart = isLocal ? server.exePresent === true : !!server.container_id;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -94,8 +97,8 @@ export default function ServerDetailPage() {
             </>
           ) : (
             <>
-              <Button variant="success" onClick={() => act('start')} disabled={busy || !server.container_id}><Play size={13} className="inline mr-1" />Start</Button>
-              <Button variant="outline" onClick={() => act('provision')} disabled={busy}><Box size={13} className="inline mr-1" />{server.container_id ? 'Re-provision' : 'Provision container'}</Button>
+              <Button variant="success" onClick={() => act('start')} disabled={busy || !canStart}><Play size={13} className="inline mr-1" />Start</Button>
+              <Button variant="outline" onClick={() => act('provision')} disabled={busy}><Box size={13} className="inline mr-1" />{isLocal ? 'Verify executable' : (server.container_id ? 'Re-provision' : 'Provision container')}</Button>
             </>
           )}
         </div>
@@ -105,6 +108,12 @@ export default function ServerDetailPage() {
         <div className="mb-4 flex items-start gap-2 text-amber-300 bg-amber-900/30 border border-amber-800 rounded p-3 text-sm">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span><code>accServer.exe</code> not found. Download the ACC Dedicated Server tool in Steam, then drop the exe into <code>acc/</code> via the Files tab or your appdata share.</span>
+        </div>
+      )}
+      {exeMissing && server.type !== 'acc' && (
+        <div className="mb-4 flex items-start gap-2 text-amber-300 bg-amber-900/30 border border-amber-800 rounded p-3 text-sm">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+          <span><code>acServer.exe</code> not found. Place it plus the game <code>content/</code> folder at <code className="font-mono">{server.exePath?.replace(/acServer\.exe$/, '')}</code></span>
         </div>
       )}
       {running && <div className="mb-4 text-xs text-muted">Server is running — stop it to edit configuration.</div>}
@@ -120,7 +129,8 @@ export default function ServerDetailPage() {
               <Row k="State" v={server.live?.state || 'unknown'} />
               <Row k="Track" v={server.live?.track || '—'} />
               <Row k="Players" v={server.live?.players != null ? `${server.live.players}${server.live.maxPlayers ? ` / ${server.live.maxPlayers}` : ''}` : '—'} />
-              <Row k="Container" v={server.container_name || '—'} mono />
+              <Row k="Runtime" v={isLocal ? 'local process' : 'docker container'} />
+              {!isLocal && <Row k="Container" v={server.container_name || '—'} mono />}
               <Row k="Game port" v={String(server.ports.game)} />
               {server.ports.http ? <Row k="HTTP port" v={String(server.ports.http)} /> : null}
               {server.live?.note && <Row k="Note" v={server.live.note} />}
