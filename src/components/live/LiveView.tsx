@@ -58,6 +58,7 @@ export function TrackMapCanvas({ snap, trackMap, selectedId }: { snap: LiveSnaps
   snapRef.current = snap;
   const selRef = useRef(selectedId);
   selRef.current = selectedId;
+  const viewRef = useRef({ zoom: 1, cx: 0, cy: 0 });
 
   useEffect(() => {
     const img = new Image();
@@ -92,36 +93,64 @@ export function TrackMapCanvas({ snap, trackMap, selectedId }: { snap: LiveSnaps
       const scale = Math.min(W / iw, H / ih);
       const ox = (W - iw * scale) / 2;
       const oy = (H - ih * scale) / 2;
-      if (imgRef.current) ctx.drawImage(imgRef.current, ox, oy, iw * scale, ih * scale);
 
-      const toPx = (wx: number, wz: number) => ({
+      // Follow camera: when a car is selected, zoom toward it; else full fit.
+      const sel = selRef.current;
+      const selCar = sel != null ? (snapRef.current.cars || []).find((c) => c.carId === sel && c.connected) : null;
+      const view = viewRef.current;
+      if (!view.cx) { view.cx = W / 2; view.cy = H / 2; }
+      const vk = 0.06;
+      view.zoom += ((selCar ? 2.6 : 1) - view.zoom) * vk;
+
+      const toPxRaw = (wx: number, wz: number) => ({
         x: ox + ((wx + (p.xOffset || 0)) / (p.scaleFactor || 1)) * scale,
         y: oy + ((wz + (p.zOffset || 0)) / (p.scaleFactor || 1)) * scale,
       });
+      if (selCar) {
+        const sp = toPxRaw(selCar.pos.x, selCar.pos.z);
+        view.cx += (sp.x - view.cx) * vk;
+        view.cy += (sp.y - view.cy) * vk;
+      } else {
+        view.cx += (W / 2 - view.cx) * vk;
+        view.cy += (H / 2 - view.cy) * vk;
+      }
+      const camX = view.cx - W / 2;
+      const camY = view.cy - H / 2;
+      const zoomPt = (rx: number, ry: number) => ({
+        x: (rx - camX - W / 2) * view.zoom + W / 2,
+        y: (ry - camY - H / 2) * view.zoom + H / 2,
+      });
+
+      ctx.save();
+      ctx.translate(W / 2 - (camX + W / 2) * view.zoom, H / 2 - (camY + H / 2) * view.zoom);
+      ctx.scale(view.zoom, view.zoom);
+      if (imgRef.current) ctx.drawImage(imgRef.current, ox, oy, iw * scale, ih * scale);
+      ctx.restore();
 
       const cars = (snapRef.current.cars || []).filter((c) => c.connected);
-      const now = performance.now();
       cars.forEach((c, i) => {
-        const target = toPx(c.pos.x, c.pos.z);
+        const target = toPxRaw(c.pos.x, c.pos.z);
         let cur = interpRef.current.get(c.carId);
         if (!cur) { cur = { x: target.x, z: target.y }; interpRef.current.set(c.carId, cur); }
-        // Lerp toward the latest snapshot position (~250ms smoothing)
+        // Lerp toward the latest snapshot position (~250ms smoothing) in raw
+        // space, then apply the camera transform at draw time.
         const k = 0.15;
         cur.x += (target.x - cur.x) * k;
         cur.z += (target.y - cur.z) * k;
+        const pt = zoomPt(cur.x, cur.z);
         const leader = (c.position ?? i + 1) === 1;
         const isSel = selRef.current === c.carId;
         if (isSel) {
           // selected driver — pulsing outer ring
           const pulse = 9.5 + Math.sin(performance.now() / 220) * 1.5;
           ctx.beginPath();
-          ctx.arc(cur.x, cur.z, pulse, 0, Math.PI * 2);
+          ctx.arc(pt.x, pt.y, pulse, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(255,255,255,0.9)';
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
         ctx.beginPath();
-        ctx.arc(cur.x, cur.z, leader || isSel ? 7 : 5.5, 0, Math.PI * 2);
+        ctx.arc(pt.x, pt.y, leader || isSel ? 7 : 5.5, 0, Math.PI * 2);
         ctx.fillStyle = carColor(c.carId);
         ctx.fill();
         ctx.lineWidth = leader || isSel ? 2.5 : 1.5;
@@ -130,17 +159,16 @@ export function TrackMapCanvas({ snap, trackMap, selectedId }: { snap: LiveSnaps
         ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#000';
-        ctx.fillText(String(c.position ?? i + 1), cur.x, cur.z + 3.5);
+        ctx.fillText(String(c.position ?? i + 1), pt.x, pt.y + 3.5);
         if (c.driverName) {
           ctx.font = '10px sans-serif';
           ctx.fillStyle = '#fff';
           ctx.strokeStyle = 'rgba(0,0,0,0.8)';
           ctx.lineWidth = 3;
-          ctx.strokeText(c.driverName, cur.x, cur.z - 10);
-          ctx.fillText(c.driverName, cur.x, cur.z - 10);
+          ctx.strokeText(c.driverName, pt.x, pt.y - 10);
+          ctx.fillText(c.driverName, pt.x, pt.y - 10);
         }
       });
-      void now;
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);

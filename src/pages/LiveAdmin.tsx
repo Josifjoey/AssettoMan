@@ -27,6 +27,7 @@ export default function LiveAdminPage() {
   const [towerOpen, setTowerOpen] = useState(true);
   const [tick, setTick] = useState(0);
   const lastDataRef = useRef(Date.now());
+  const speedHist = useRef(new Map<number, number[]>()).current;
   const mapRef = useRef<HTMLDivElement>(null);
 
   const acServers = servers.filter((s) => s.type !== 'acc');
@@ -54,7 +55,16 @@ export default function LiveAdminPage() {
     const load = async () => {
       try {
         const { data } = await api.get(`/servers/${serverId}/telemetry`);
-        if (!dead) { lastDataRef.current = Date.now(); setSnap(data); }
+        if (!dead) {
+          lastDataRef.current = Date.now();
+          setSnap(data);
+          for (const c of data.cars || []) {
+            const h = speedHist.get(c.carId) || [];
+            h.push(Math.round(c.speedKmh));
+            if (h.length > 40) h.shift();
+            speedHist.set(c.carId, h);
+          }
+        }
       } catch { /* keep polling */ }
     };
     load();
@@ -176,13 +186,25 @@ export default function LiveAdminPage() {
               <button onClick={() => setTowerOpen(true)} className="text-muted hover:text-foreground py-1" title="Show timing"><PanelRightOpen size={13} /></button>
             )}
           </div>
+          {/* collapsed: mini leaderboard of position chips */}
+          {!towerOpen && (
+            <div className="flex flex-col items-center gap-1.5 py-2 overflow-hidden">
+              {cars.filter((c) => c.connected).sort((a, b) => (a.position ?? 99) - (b.position ?? 99)).slice(0, 10).map((c) => (
+                <button key={c.carId} onClick={() => { setSelected(c.carId); setTowerOpen(true); }}
+                  className={`w-5 h-5 rounded-full grid place-items-center text-[9px] font-bold text-black ${selected === c.carId ? 'ring-2 ring-white' : ''}`}
+                  style={{ background: carColor(c.carId) }} title={c.driverName || `Car ${c.carId}`}>
+                  {c.position ?? '·'}
+                </button>
+              ))}
+            </div>
+          )}
           {towerOpen && (
             <>
               <div className="flex-1 min-h-0 overflow-auto">
                 <TimingTable cars={cars} carNames={carNames} selectedId={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />
               </div>
 
-              {selCar && <CarDetail car={selCar} carNames={carNames} onKick={() => setKickId(selCar.carId)} />}
+              {selCar && <CarDetail car={selCar} carNames={carNames} speeds={speedHist.get(selCar.carId)} onKick={() => setKickId(selCar.carId)} />}
 
               {/* events docked at tower bottom */}
               <div className="border-t border-border/60 shrink-0">
@@ -236,7 +258,7 @@ export default function LiveAdminPage() {
   );
 }
 
-function CarDetail({ car, carNames, onKick }: { car: LiveCar; carNames: Record<string, string>; onKick: () => void }) {
+function CarDetail({ car, carNames, speeds, onKick }: { car: LiveCar; carNames: Record<string, string>; speeds?: number[]; onKick: () => void }) {
   const laps = car.lapHistory || [];
   return (
     <div className="border-t border-border/60 p-3 space-y-2 shrink-0 bg-card-2/60">
@@ -253,6 +275,12 @@ function CarDetail({ car, carNames, onKick }: { car: LiveCar; carNames: Record<s
         <Stat label="RPM" v={car.rpm ? String(Math.round(car.rpm)) : '—'} />
         <Stat label="Track" v={`${Math.round((car.splinePos || 0) * 100)}%`} />
       </div>
+      {speeds && speeds.length > 2 && (
+        <div>
+          <div className="text-[9px] uppercase tracking-wide text-muted mb-0.5">km/h — last minute</div>
+          <Sparkline data={speeds} color={carColor(car.carId)} />
+        </div>
+      )}
       {laps.length > 0 && (
         <div className="flex flex-wrap gap-1 font-mono text-[11px] tabular-nums">
           {laps.slice(-8).map((l, i) => (
@@ -263,6 +291,16 @@ function CarDetail({ car, carNames, onKick }: { car: LiveCar; carNames: Record<s
         </div>
       )}
     </div>
+  );
+}
+
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const max = Math.max(...data, 1);
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * 100},${23 - (v / max) * 21 - 1}`).join(' ');
+  return (
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="w-full h-6 bg-black/30 rounded">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
   );
 }
 
