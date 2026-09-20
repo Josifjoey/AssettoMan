@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, GameServer } from '../api';
-import { TrackMapCanvas, LiveSnapshot, TrackMap, LiveCar, carColor, fmtMs, fmtClock } from '../components/live/LiveView';
+import { TrackMapCanvas, TimingTable, LiveEvents, LiveSnapshot, TrackMap, LiveCar, carColor, fmtMs, fmtClock } from '../components/live/LiveView';
 import { Button, Badge, useToast, ConfirmDialog } from '../components/ui';
-import { Radio, Maximize, Users, Thermometer, CloudRain, Flag, Send, SkipForward, RotateCcw, MessageSquare } from 'lucide-react';
+import { Radio, Maximize, Users, Thermometer, CloudRain, Flag, Send, SkipForward, RotateCcw, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 // Staff live-timing — broadcast layout: the map fills the page, chrome is
 // edge-docked translucent strips (top bar / right timing column / bottom
 // controls) instead of floating islands. ACC servers show but can't stream.
 
-const TOWER_W = 'w-[23rem]';
+const TOWER_OPEN = '23rem';
+const TOWER_SHUT = '2.25rem';
 
 export default function LiveAdminPage() {
   const { serverId } = useParams();
@@ -23,6 +24,7 @@ export default function LiveAdminPage() {
   const [chat, setChat] = useState('');
   const [cmd, setCmd] = useState('');
   const [kickId, setKickId] = useState<number | null>(null);
+  const [towerOpen, setTowerOpen] = useState(true);
   const [tick, setTick] = useState(0);
   const lastDataRef = useRef(Date.now());
   const mapRef = useRef<HTMLDivElement>(null);
@@ -94,14 +96,15 @@ export default function LiveAdminPage() {
   const cars = snap.cars || [];
   const events = snap.events || [];
   const selCar = cars.find((c) => c.carId === selected) || null;
+  const towerW = towerOpen ? TOWER_OPEN : TOWER_SHUT;
 
   return (
     <div ref={mapRef} className="h-full relative overflow-hidden bg-[#05060a] text-foreground">
 
       {/* ============ MAP (fills everything) ============ */}
       {trackMap && !isAcc
-        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} /></div>
-        : <div className={`absolute inset-0 ${isAcc ? '' : 'pr-[23rem]'} grid place-items-center px-6`}>
+        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} selectedId={selected} /></div>
+        : <div className="absolute inset-0 grid place-items-center px-6" style={{ paddingRight: isAcc ? 0 : towerW }}>
             <div className="hero-band absolute inset-0 opacity-30" />
             <div className="relative text-center text-muted text-sm max-w-sm">
               {isAcc
@@ -157,65 +160,43 @@ export default function LiveAdminPage() {
         </div>
       </div>
 
-      {/* ============ RIGHT TOWER (docked, flush below top strip) ============ */}
+      {/* ============ RIGHT TOWER (docked, flush below top strip, collapsible) ============ */}
       {!isAcc && server && (
-        <div className={`absolute top-12 right-0 bottom-0 ${TOWER_W} z-10 flex flex-col bg-card/80 backdrop-blur-md border-l border-border/60`}>
-          <div className="eyebrow px-3 py-2 border-b border-border/60 flex items-center justify-between">
-            <span>Timing</span>
-            <span className="text-muted normal-case tracking-normal">{cars.filter((c) => c.connected).length} cars</span>
+        <div className={`absolute top-12 right-0 bottom-0 z-10 flex flex-col bg-card/80 backdrop-blur-md border-l border-border/60 transition-[width] duration-200 ${towerOpen ? 'w-[23rem] max-w-[88vw]' : 'w-9'}`}>
+          <div className={`eyebrow border-b border-border/60 flex items-center justify-between ${towerOpen ? 'px-3 py-2' : 'px-0 py-2 flex-col gap-1'}`}>
+            {towerOpen ? (
+              <>
+                <span>Timing</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-muted normal-case tracking-normal">{cars.filter((c) => c.connected).length} cars</span>
+                  <button onClick={() => setTowerOpen(false)} className="text-muted hover:text-foreground" title="Hide timing"><PanelRightClose size={13} /></button>
+                </span>
+              </>
+            ) : (
+              <button onClick={() => setTowerOpen(true)} className="text-muted hover:text-foreground py-1" title="Show timing"><PanelRightOpen size={13} /></button>
+            )}
           </div>
-          <div className="flex-1 min-h-0 overflow-auto">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-card/95 backdrop-blur z-10">
-                <tr className="text-left text-muted border-b border-border">
-                  <th className="px-3 py-2 w-8">P</th>
-                  <th className="px-2 py-2">Driver</th>
-                  <th className="px-2 py-2">Car</th>
-                  <th className="px-2 py-2 text-right">Laps</th>
-                  <th className="px-2 py-2 text-right">Best</th>
-                  <th className="px-2 py-2 text-right">Last</th>
-                  <th className="px-3 py-2 text-right">Gap</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cars.map((c) => (
-                  <tr key={c.carId} onClick={() => setSelected(selected === c.carId ? null : c.carId)}
-                    className={`border-b border-border/40 cursor-pointer transition-colors ${selected === c.carId ? 'bg-primary/15' : 'hover:bg-accent/50'} ${!c.connected ? 'opacity-40' : ''}`}>
-                    <td className="px-3 py-1.5 font-bold" style={{ color: carColor(c.carId) }}>{c.position}</td>
-                    <td className="px-2 py-1.5 truncate max-w-[8rem]">{c.driverName || `Car ${c.carId}`}</td>
-                    <td className="px-2 py-1.5 text-muted truncate max-w-[6rem]" title={c.model || ''}>{(c.model && carNames[c.model]) || c.model || '—'}</td>
-                    <td className="px-2 py-1.5 text-right tabular-nums">{c.laps}</td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums">{fmtMs(c.bestLapMs)}</td>
-                    <td className="px-2 py-1.5 text-right font-mono tabular-nums">{fmtMs(c.lastLapMs)}</td>
-                    <td className="px-3 py-1.5 text-right text-muted font-mono">{c.gapToLeader || ''}</td>
-                  </tr>
-                ))}
-                {cars.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-muted">No cars on track</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          {towerOpen && (
+            <>
+              <div className="flex-1 min-h-0 overflow-auto">
+                <TimingTable cars={cars} carNames={carNames} selectedId={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />
+              </div>
 
-          {selCar && <CarDetail car={selCar} carNames={carNames} onKick={() => setKickId(selCar.carId)} />}
+              {selCar && <CarDetail car={selCar} carNames={carNames} onKick={() => setKickId(selCar.carId)} />}
 
-          {/* events docked at tower bottom */}
-          <div className="border-t border-border/60 shrink-0">
-            <div className="eyebrow px-3 py-1.5">Events</div>
-            <div className="h-28 overflow-auto px-1 pb-1">
-              {events.slice(0, 10).map((e, i) => (
-                <div key={i} className="flex gap-2 text-xs px-2 py-0.5">
-                  <span className="text-muted shrink-0">{e.type === 'chat' ? <MessageSquare size={10} className="inline" /> : e.type === 'lap' ? <Flag size={10} className="inline" /> : '·'}</span>
-                  <span className="truncate">{e.text}</span>
-                </div>
-              ))}
-              {events.length === 0 && <div className="text-xs text-muted px-2">No events yet.</div>}
-            </div>
-          </div>
+              {/* events docked at tower bottom */}
+              <div className="border-t border-border/60 shrink-0">
+                <div className="eyebrow px-3 py-1.5">Events</div>
+                <LiveEvents events={events} bare heightClass="h-28" />
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {/* ============ BOTTOM STRIP — admin controls, docked over map area ============ */}
       {!isAcc && server && (
-        <div className="absolute bottom-0 left-0 right-[23rem] z-10 flex items-center gap-2 px-3 py-2 bg-card/80 backdrop-blur-md border-t border-border/60">
+        <div className="absolute bottom-0 left-0 z-10 flex items-center gap-2 px-3 py-2 bg-card/80 backdrop-blur-md border-t border-border/60" style={{ right: towerW }}>
           <div className="relative flex-1 min-w-[9rem]">
             <Send size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
             <input value={chat} onChange={(e) => setChat(e.target.value)}
@@ -238,7 +219,7 @@ export default function LiveAdminPage() {
 
       {/* waiting pill — floats over the map area only */}
       {(!snap.active || (stale && cars.length === 0)) && !isAcc && server && (
-        <div className="absolute top-16 left-0 right-[23rem] z-10 flex justify-center pointer-events-none">
+        <div className="absolute top-16 left-0 z-10 flex justify-center pointer-events-none" style={{ right: towerW }}>
           <div className="px-4 py-1.5 text-xs text-amber-300 bg-amber-950/70 border border-amber-900/60 rounded-full backdrop-blur flex items-center gap-2">
             <Radio size={12} /> Waiting for live data — start the server with telemetry enabled, then join a session.
           </div>

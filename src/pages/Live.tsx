@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { api } from '../api';
-import LiveView, { TrackMapCanvas, LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
-import { Maximize, Radio, Gauge, Users, Thermometer, CloudRain, Flag, MessageSquare } from 'lucide-react';
+import LiveView, { TrackMapCanvas, LiveEvents, LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
+import { Maximize, Radio, Gauge, Users, Thermometer, CloudRain, Flag } from 'lucide-react';
 
 // Public spectator page — broadcast layout: map fills the screen, chrome is
 // edge-docked translucent strips (top bar + right timing column).
@@ -22,6 +22,7 @@ export default function LivePage() {
   const [serverName, setServerName] = useState('');
   const [tick, setTick] = useState(0);
   const [picker, setPicker] = useState<LivePickerServer[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
   const lastDataRef = useRef(Date.now());
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +116,7 @@ export default function LivePage() {
 
       {/* ============ MAP ============ */}
       {trackMap
-        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} /></div>
+        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} selectedId={selected} /></div>
         : <div className={`absolute inset-0 ${hud ? '' : 'pr-[23rem]'} grid place-items-center px-6`}>
             <div className="hero-band absolute inset-0 opacity-30" />
             <div className="relative text-muted text-sm">No track map available</div>
@@ -166,18 +167,11 @@ export default function LivePage() {
             <span>Timing</span>
             <span className="text-muted normal-case tracking-normal">{(snap.cars || []).filter((c) => c.connected).length} cars</span>
           </div>
-          <LiveView snap={snap} trackMap={null} carNames={carNames} towerOnly />
+          <LiveView snap={snap} trackMap={null} carNames={carNames} towerOnly
+            selectedId={selected} onSelect={(id) => setSelected(selected === id ? null : id)} />
           <div className="border-t border-border/60 shrink-0">
             <div className="eyebrow px-3 py-1.5">Events</div>
-            <div className="h-28 overflow-auto px-1 pb-1">
-              {(snap.events || []).slice(0, 10).map((e, i) => (
-                <div key={i} className="flex gap-2 text-xs px-2 py-0.5">
-                  <span className="text-muted shrink-0">{e.type === 'chat' ? <MessageSquare size={10} className="inline" /> : e.type === 'lap' ? <Flag size={10} className="inline" /> : '·'}</span>
-                  <span className="truncate">{e.text}</span>
-                </div>
-              ))}
-              {(snap.events || []).length === 0 && <div className="text-xs text-muted px-2">No events yet.</div>}
-            </div>
+            <LiveEvents events={snap.events || []} bare heightClass="h-28" />
           </div>
         </div>
       )}
