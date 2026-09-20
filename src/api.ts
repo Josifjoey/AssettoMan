@@ -31,7 +31,7 @@ export interface ServerLive {
 export interface GameServer {
   id: string;
   name: string;
-  type: 'ac' | 'ac_modded' | 'acc';
+  type: 'ac' | 'ac_modded' | 'assettoserver' | 'acc';
   runtime?: 'docker' | 'local';
   container_name?: string;
   container_id?: string;

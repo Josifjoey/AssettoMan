@@ -9,7 +9,7 @@ import EntriesEditor from '../components/server/EntriesEditor';
 import FileBrowser from '../components/server/FileBrowser';
 import LogViewer from '../components/server/LogViewer';
 import ModInstaller from '../components/server/ModInstaller';
-import LiveView, { LiveSnapshot, TrackMap } from '../components/live/LiveView';
+import LiveView, { LiveSnapshot, TrackMap, fmtMs } from '../components/live/LiveView';
 
 export default function ServerDetailPage() {
   const { id } = useParams();
@@ -75,7 +75,8 @@ export default function ServerDetailPage() {
     { id: 'config', label: 'Configuration' },
     { id: 'entries', label: server.type === 'acc' ? 'Entry List & BoP' : 'Entry List' },
     ...(server.type !== 'acc' ? [{ id: 'live', label: 'Live' }] : []),
-    ...(server.type === 'ac_modded' ? [{ id: 'content', label: 'Mod Content' }] : []),
+    { id: 'results', label: 'Results' },
+    ...(server.type === 'ac_modded' || server.type === 'assettoserver' ? [{ id: 'content', label: 'Mod Content' }] : []),
     { id: 'files', label: 'Files' },
     { id: 'logs', label: 'Logs' },
     { id: 'danger', label: 'Danger' },
@@ -115,7 +116,7 @@ export default function ServerDetailPage() {
       {exeMissing && server.type !== 'acc' && (
         <div className="mb-4 flex items-start gap-2 text-amber-300 bg-amber-900/30 border border-amber-800 rounded p-3 text-sm">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          <span><code>acServer.exe</code> not found. Place it plus the game <code>content/</code> folder at <code className="font-mono">{server.exePath?.replace(/acServer\.exe$/, '')}</code></span>
+          <span><code>{server.exePath?.split(/[\\/]/).pop() || 'acServer.exe'}</code> not found. Place it plus the game <code>content/</code> folder at <code className="font-mono">{server.exePath?.replace(/[^\\/]+$/, '')}</code></span>
         </div>
       )}
       {running && <div className="mb-4 text-xs text-muted">Server is running — stop it to edit configuration.</div>}
@@ -169,6 +170,8 @@ export default function ServerDetailPage() {
       )}
 
       {tab === 'live' && <LiveTab server={server} />}
+
+      {tab === 'results' && <ResultsTab server={server} />}
 
       {tab === 'content' && <ModInstaller server={server} onChanged={load} />}
 
@@ -248,6 +251,88 @@ function LiveTab({ server }: { server: GameServer }) {
         <Button variant="outline" disabled={!cmd} onClick={() => { act('admin', { command: cmd }); setCmd(''); }}>Run admin command</Button>
       </div>
     </div>
+  );
+}
+
+function ResultsTab({ server }: { server: GameServer }) {
+  const [list, setList] = useState<any[]>([]);
+  const [sel, setSel] = useState<any | null>(null);
+  const [expandLaps, setExpandLaps] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    api.get(`/servers/${server.id}/results`).then((r) => setList(r.data.results)).catch(() => setList([]));
+  }, [server.id]);
+
+  const open = async (id: string) => {
+    try {
+      const { data } = await api.get(`/servers/${server.id}/results/${id}`);
+      setSel(data);
+      setExpandLaps({});
+    } catch { /* ignore */ }
+  };
+
+  if (sel) {
+    return (
+      <div className="space-y-3">
+        <button className="text-xs text-muted hover:text-foreground" onClick={() => setSel(null)}>← Back to results</button>
+        <Card title={`${sel.type} — ${sel.track || '?'} · ${new Date(sel.date).toLocaleString()}`}>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-muted border-b border-border">
+                <th className="px-2 py-1.5 w-8">P</th><th className="px-2 py-1.5">Driver</th><th className="px-2 py-1.5">Car</th>
+                <th className="px-2 py-1.5 text-right">Laps</th><th className="px-2 py-1.5 text-right">Best</th>
+                <th className="px-2 py-1.5 text-right">Total</th><th className="px-2 py-1.5 text-right">Gap</th><th className="px-2 py-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {(sel.results || []).map((r: any, i: number) => (
+                <React.Fragment key={i}>
+                  <tr className="border-b border-border/50">
+                    <td className="px-2 py-1.5 font-bold">{r.position}</td>
+                    <td className="px-2 py-1.5">{r.driverName || '—'}{r.team ? <span className="text-muted"> · {r.team}</span> : ''}</td>
+                    <td className="px-2 py-1.5 text-muted">{r.carModel || '—'}{r.raceNumber ? ` #${r.raceNumber}` : ''}</td>
+                    <td className="px-2 py-1.5 text-right">{r.lapCount}</td>
+                    <td className="px-2 py-1.5 text-right font-mono">{fmtMs(r.bestLapMs)}</td>
+                    <td className="px-2 py-1.5 text-right font-mono">{fmtMs(r.totalTimeMs)}</td>
+                    <td className="px-2 py-1.5 text-right text-muted">{r.gapMs != null ? `+${fmtMs(r.gapMs)}` : ''}</td>
+                    <td className="px-2 py-1.5">
+                      <button className="text-[10px] text-primary hover:underline" onClick={() => setExpandLaps((m) => ({ ...m, [r.driverName]: !m[r.driverName] }))}>
+                        {expandLaps[r.driverName] ? 'hide laps' : 'laps'}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandLaps[r.driverName] && (
+                    <tr><td colSpan={8} className="px-4 py-2 bg-background">
+                      <div className="grid grid-cols-4 md:grid-cols-6 gap-1 font-mono text-[11px]">
+                        {(sel.laps || []).filter((l: any) => l.driverName === r.driverName).map((l: any, j: number) => (
+                          <span key={j} className={l.valid ? '' : 'text-red-400 line-through'}>{fmtMs(l.lapTimeMs)}{l.cuts ? ` (${l.cuts}x)` : ''}</span>
+                        ))}
+                      </div>
+                    </td></tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <Card title={`Session results (${list.length})`}>
+      {list.length === 0 && <div className="text-sm text-muted">No result files yet — they appear after sessions end.</div>}
+      <div className="space-y-1">
+        {list.map((r) => (
+          <button key={r.id} onClick={() => open(r.id)} className="w-full flex items-center gap-3 bg-background border border-border rounded px-3 py-2 text-sm hover:border-primary/60 text-left">
+            <Badge tone={r.type === 'race' ? 'red' : r.type === 'qualify' ? 'blue' : 'neutral'}>{r.type}</Badge>
+            <span className="flex-1 truncate">{r.track || '?'}</span>
+            <span className="text-xs text-muted">{new Date(r.date).toLocaleString()}</span>
+            <span className="text-xs text-muted">{r.driverCount} drivers{r.winner ? ` · 🏆 ${r.winner}` : ''}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
 

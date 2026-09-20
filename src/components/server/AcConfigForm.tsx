@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GameServer } from '../../api';
-import { Card, Input, Select, Field, Check, Button } from '../ui';
+import { Card, Input, Select, Field, Check, Button, Textarea } from '../ui';
 import { Plus, Trash2 } from 'lucide-react';
 
 function setPath(obj: any, path: string[], value: any) {
@@ -194,6 +194,36 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
           </div>
         </div>
       </Card>
+
+      {server.type === 'assettoserver' && (
+        <Card title="AssettoServer (extra_cfg.yml)">
+          <div className="grid md:grid-cols-3 gap-3">
+            <Field label="Minimum CSP version" hint="0 = don't require CSP"><Input disabled={disabled} type="number" value={cfg.extra?.minimumCspVersion ?? 0} onChange={(e) => set('extra.minimumCspVersion', +e.target.value)} /></Field>
+            <Field label="Vote-kick min. players"><Input disabled={disabled} type="number" value={cfg.extra?.voteKickMinimumConnectedPlayers ?? 3} onChange={(e) => set('extra.voteKickMinimumConnectedPlayers', +e.target.value)} /></Field>
+            <Field label="Server description" hint="Shown in CM server details"><Input disabled={disabled} value={cfg.extra?.serverDescription || ''} onChange={(e) => set('extra.serverDescription', e.target.value)} /></Field>
+          </div>
+          <div className="grid md:grid-cols-3 gap-3 mt-3">
+            <Check disabled={disabled} label="Steam auth" checked={!!cfg.extra?.useSteamAuth} onChange={(v) => set('extra.useSteamAuth', v)} />
+            <Check disabled={disabled} label="AI traffic" checked={!!cfg.extra?.enableAi} onChange={(v) => set('extra.enableAi', v)} />
+            <Check disabled={disabled} label="WeatherFX" checked={!!cfg.extra?.enableWeatherFx} onChange={(v) => set('extra.enableWeatherFx', v)} />
+            <Check disabled={disabled} label="Real time" checked={!!cfg.extra?.enableRealTime} onChange={(v) => set('extra.enableRealTime', v)} />
+            <Check disabled={disabled} label="Car reset (CM reset key)" checked={!!cfg.extra?.enableCarReset} onChange={(v) => set('extra.enableCarReset', v)} />
+            <Check disabled={disabled} label="Session vote" checked={!!cfg.extra?.enableSessionVote} onChange={(v) => set('extra.enableSessionVote', v)} />
+            <Check disabled={disabled} label="Kick player vote" checked={!!cfg.extra?.enableKickPlayerVote} onChange={(v) => set('extra.enableKickPlayerVote', v)} />
+            <Check disabled={disabled} label="Force lights" checked={!!cfg.extra?.forceLights} onChange={(v) => set('extra.forceLights', v)} />
+            <Check disabled={disabled} label="Global DRS" checked={!!cfg.extra?.enableGlobalDrs} onChange={(v) => set('extra.enableGlobalDrs', v)} />
+            <Check disabled={disabled} label="Unlimited P2P" checked={!!cfg.extra?.enableUnlimitedP2P} onChange={(v) => set('extra.enableUnlimitedP2P', v)} />
+          </div>
+          <div className="grid md:grid-cols-2 gap-3 mt-3">
+            <Field label="Loading image URLs" hint="One URL per line">
+              <Textarea disabled={disabled} rows={3} value={(cfg.extra?.loadingImageUrls || []).join('\n')} onChange={(e) => set('extra.loadingImageUrls', e.target.value.split('\n').map((s) => s.trim()).filter(Boolean))} />
+            </Field>
+            <Field label="Enabled plugins" hint="One plugin name per line (e.g. AiPlugin, WeatherPlugin)">
+              <Textarea disabled={disabled} rows={3} value={(cfg.extra?.enablePlugins || []).join('\n')} onChange={(e) => set('extra.enablePlugins', e.target.value.split('\n').map((s) => s.trim()).filter(Boolean))} />
+            </Field>
+          </div>
+        </Card>
+      )}
 
       {!disabled && <Button onClick={() => onSave(cfg, { game: gamePort, http: httpPort })}>Save configuration</Button>}
     </div>

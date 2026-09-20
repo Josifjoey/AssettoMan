@@ -4,7 +4,7 @@ import { api, GameServer } from '../api';
 import { Card, Badge, Button } from '../components/ui';
 import { Play, Square, RefreshCw, Plus, AlertTriangle, MapPin, Users } from 'lucide-react';
 
-const TYPE_LABEL: Record<string, string> = { ac: 'Assetto Corsa', ac_modded: 'AC Modded', acc: 'ACC' };
+const TYPE_LABEL: Record<string, string> = { ac: 'Assetto Corsa', ac_modded: 'AC Modded', assettoserver: 'AssettoServer', acc: 'ACC' };
 
 function StateBadge({ s }: { s: GameServer }) {
   const live = s.live;

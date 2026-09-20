@@ -6,6 +6,7 @@ import { Card, Input, Button, Field, Check } from '../components/ui';
 const TYPES = [
   { id: 'ac', label: 'Assetto Corsa', desc: 'Vanilla AC dedicated server (acServer via steamcmd). Official cars & tracks.' },
   { id: 'ac_modded', label: 'Assetto Corsa — Modded', desc: 'Same server plus mod cars/tracks you upload, with optional public downloads.' },
+  { id: 'assettoserver', label: 'Assetto Corsa — AssettoServer', desc: 'Community server (compujuckel/AssettoServer): Content Manager downloads, AI traffic, dynamic weather, Steam auth. Recommended for modded servers.' },
   { id: 'acc', label: 'Assetto Corsa Competizione', desc: 'ACC dedicated server (accServer.exe via Wine — see note after creating).' },
 ];
 
@@ -30,9 +31,9 @@ export default function ServerNewPage() {
     }).catch(() => setRuntime((r) => r ?? 'local'));
   }, []);
 
-  const defaults = { ac: 9600, ac_modded: 9610, acc: 9201 } as const;
+  const defaults = { ac: 9600, ac_modded: 9610, assettoserver: 9620, acc: 9201 } as const;
   const effGame = gamePort || defaults[type as keyof typeof defaults];
-  const effHttp = httpPort || (type === 'acc' ? 0 : (type === 'ac_modded' ? 8091 : 8081));
+  const effHttp = httpPort || (type === 'acc' ? 0 : (type === 'ac_modded' ? 8091 : type === 'assettoserver' ? 8101 : 8081));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +48,7 @@ export default function ServerNewPage() {
         ports,
         isPublic,
         runtime: runtime || 'local',
-        steam: type === 'acc' ? undefined : { username: steamUser, password: steamPass },
+        steam: (type === 'acc' || type === 'assettoserver') ? undefined : { username: steamUser, password: steamPass },
       });
       nav(`/servers/${data.server.id}`);
     } catch (e: any) {
@@ -85,7 +86,7 @@ export default function ServerNewPage() {
               className={`text-left p-3 rounded border ${runtime === 'local' ? 'border-primary bg-accent/60' : 'border-border hover:bg-accent/30'}`}
             >
               <div className="font-medium text-sm">Local process (this machine)</div>
-              <div className="text-xs text-muted">Runs the game exe directly here — drop <code>{type === 'acc' ? 'accServer.exe' : 'acServer.exe'}</code> + game files into the server's folder. Best for Windows.</div>
+              <div className="text-xs text-muted">Runs the game exe directly here — drop <code>{type === 'acc' ? 'accServer.exe' : type === 'assettoserver' ? 'AssettoServer.exe' : 'acServer.exe'}</code> + game files into the server's folder. Best for Windows.</div>
             </button>
             <button
               type="button"
@@ -110,7 +111,7 @@ export default function ServerNewPage() {
               </Field>
               {type !== 'acc' && (
                 <Field label="HTTP port" hint="AC status API port">
-                  <Input type="number" value={httpPort} onChange={(e) => setHttpPort(e.target.value ? Number(e.target.value) : '')} placeholder={String(type === 'ac_modded' ? 8091 : 8081)} />
+                  <Input type="number" value={httpPort} onChange={(e) => setHttpPort(e.target.value ? Number(e.target.value) : '')} placeholder={String(effHttp)} />
                 </Field>
               )}
             </div>
@@ -118,7 +119,7 @@ export default function ServerNewPage() {
           </div>
         </Card>
 
-        {type !== 'acc' && runtime === 'docker' && (
+        {(type === 'ac' || type === 'ac_modded') && runtime === 'docker' && (
           <Card title="Steam credentials">
             <p className="text-xs text-muted mb-3">Required to download AC dedicated server via SteamCMD. Any Steam account works (game ownership not required) but Steam Guard must be disabled. Stored server-side only.</p>
             <div className="grid grid-cols-2 gap-3">
@@ -128,12 +129,27 @@ export default function ServerNewPage() {
           </Card>
         )}
 
-        {type !== 'acc' && runtime === 'local' && (
+        {(type === 'ac' || type === 'ac_modded') && runtime === 'local' && (
           <Card title="Heads up">
             <p className="text-sm text-muted">
               After creating, drop <code className="mx-1 px-1 bg-accent rounded">acServer.exe</code> plus the game's
               <code className="mx-1 px-1 bg-accent rounded">content/</code> folder into this server's
               <code className="mx-1 px-1 bg-accent rounded">serverfiles/</code> directory (from SteamCMD app 302550, or your existing server install). Check the Files tab for the exact path.
+            </p>
+          </Card>
+        )}
+
+        {type === 'assettoserver' && (
+          <Card title="Heads up">
+            <p className="text-sm text-muted">
+              {runtime === 'local' ? (
+                <>Download <code className="mx-1 px-1 bg-accent rounded">assetto-server-win-x64.zip</code> from the
+                <a className="text-primary hover:underline mx-1" href="https://github.com/compujuckel/AssettoServer/releases/latest" target="_blank" rel="noopener noreferrer">AssettoServer releases</a>
+                page and extract it into this server's <code className="mx-1 px-1 bg-accent rounded">serverfiles/</code> directory so
+                <code className="mx-1 px-1 bg-accent rounded">AssettoServer.exe</code> sits next to <code className="mx-1 px-1 bg-accent rounded">cfg/</code>.</>
+              ) : (
+                <>The <code className="mx-1 px-1 bg-accent rounded">compujuckel/assettoserver</code> image is pulled automatically — no Steam login needed. Copy your AC <code className="mx-1 px-1 bg-accent rounded">content/</code> folder into this server's <code className="mx-1 px-1 bg-accent rounded">serverfiles/</code> directory.</>
+              )}
             </p>
           </Card>
         )}

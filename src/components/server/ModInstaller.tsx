@@ -69,7 +69,9 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
         <Card title="Content Manager download links">
           <p className="text-xs text-muted mb-2">
             Cars/track in the current config and whether players get a download link (cm_content/content.json). Add links on the <Link to="/content" className="text-primary hover:underline">Content page</Link>.<br />
-            content.json is generated for Content Manager. Vanilla acServer doesn't expose it — it is used when running via AssettoServer or CM's server wrapper. Public page download links always work.
+            {server.type === 'assettoserver'
+              ? 'content.json is served to Content Manager automatically by AssettoServer (EnableServerDetails).'
+              : "content.json is generated for Content Manager. Vanilla acServer doesn't expose it — it is used when running via AssettoServer or CM's server wrapper. Public page download links always work."}
           </p>
           <div className="space-y-1 text-sm">
             {cfgCars.map((c) => {

@@ -15,12 +15,14 @@ import { writeAcConfigs, listInstalledContent } from '../configAc.js';
 import { writeAccConfigs, readAccConfigs, accServerExePresent } from '../configAcc.js';
 import { getServerStatus, invalidateStatus } from '../status.js';
 import { writeCmContent, cmContentStatus } from '../cmContent.js';
+import { writeAssettoServerExtraCfg } from '../configAssettoServer.js';
+import { listResults, getResult } from '../results.js';
 import { startTelemetry, stopTelemetry, getSnapshot, telemetrySend, managerAddressFor } from '../telemetry.js';
 
 const router = Router();
 router.use(requireAuth);
 
-const VALID_TYPES = ['ac', 'ac_modded', 'acc'];
+const VALID_TYPES = ['ac', 'ac_modded', 'assettoserver', 'acc'];
 
 function rowToServer(row) {
   const ports = JSON.parse(row.ports || '{}');
@@ -48,6 +50,13 @@ function writeConfigsFor(server) {
 // Writes game configs + CM content.json. Async side effects are best-effort.
 async function writeAllConfigs(server) {
   writeConfigsFor(server);
+  if (server.type === 'assettoserver') {
+    try {
+      await writeAssettoServerExtraCfg(server.data_dir, server.config, {
+        telemetryEnabled: server.config?.telemetry?.enabled !== false,
+      });
+    } catch { /* extra_cfg is best-effort */ }
+  }
   if (server.type !== 'acc') {
     try {
       const baseUrl = String(await getSetting('public_base_url', '')).replace(/\/+$/, '');
@@ -311,6 +320,22 @@ router.post('/:id/telemetry/kick', telemetryAction('kick', (req) => ({ carId: +r
 router.post('/:id/telemetry/next-session', telemetryAction('nextSession', {}, 'telemetry_next_session'));
 router.post('/:id/telemetry/restart-session', telemetryAction('restartSession', {}, 'telemetry_restart_session'));
 router.post('/:id/telemetry/admin', telemetryAction('admin', (req) => ({ command: String(req.body?.command || '').slice(0, 200) }), 'telemetry_admin', (req, s) => `${s.name}: ${String(req.body?.command || '').slice(0, 80)}`));
+
+// GET /api/servers/:id/results — session result archive (list)
+router.get('/:id/results', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  res.json({ results: listResults(server) });
+});
+
+// GET /api/servers/:id/results/:file — one result file (full)
+router.get('/:id/results/:file', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  const r = getResult(server, req.params.file);
+  if (!r) return res.status(404).json({ error: 'Result not found' });
+  res.json(r);
+});
 
 // GET /api/servers/:id/cm-content — generated CM content.json + missing links
 router.get('/:id/cm-content', async (req, res) => {

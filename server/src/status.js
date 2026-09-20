@@ -1,5 +1,6 @@
 import { inspectContainer } from './docker.js';
 import { localStatus } from './local.js';
+import { getAccLive } from './accLive.js';
 
 // Live status per server: container state + (for AC) the built-in HTTP API
 // which reports track, connected clients and more.
@@ -62,6 +63,15 @@ async function computeStatus(server) {
       maxPlayers: null,
       track: trackFromConfig(server),
     };
+    if (st.running && server.type === 'acc') {
+      try {
+        const live = await getAccLive(server);
+        base.players = live.connectedCount;
+        base.sessionType = live.sessionType;
+        base.sessionPhase = live.sessionPhase;
+        if (live.track) base.track = live.track;
+      } catch { /* log parsing is best-effort */ }
+    }
     if (st.running && server.type !== 'acc') {
       const cfg = typeof server.config === 'string' ? JSON.parse(server.config) : server.config;
       const httpPort = server.ports?.http || cfg?.ports?.http || 8081;
@@ -99,6 +109,16 @@ async function computeStatus(server) {
     maxPlayers: null,
     track: trackFromConfig(server),
   };
+
+  if (running && server.type === 'acc') {
+    try {
+      const live = await getAccLive(server);
+      base.players = live.connectedCount;
+      base.sessionType = live.sessionType;
+      base.sessionPhase = live.sessionPhase;
+      if (live.track) base.track = live.track;
+    } catch { /* log parsing is best-effort */ }
+  }
 
   if (running && server.type !== 'acc') {
     const cfg = typeof server.config === 'string' ? JSON.parse(server.config) : server.config;

@@ -5,9 +5,10 @@ Web-based manager for Assetto Corsa & Assetto Corsa Competizione dedicated serve
 ## Features
 
 - **First-run setup** — create the admin account on first login; admins can add **manager** accounts that can run/configure servers but can't manage accounts
-- **Three server types**
+- **Four server types**
   - **Assetto Corsa** — vanilla dedicated server via `ghcr.io/ich777/steamcmd:assettocorsa` (SteamCMD, needs a Steam account with Guard disabled)
   - **Assetto Corsa Modded** — same server plus mod car/track zips you upload; auto-extracted into `content/`, optionally published as public downloads
+  - **Assetto Corsa — AssettoServer** — `compujuckel/assettoserver` (Docker Hub, no Steam needed) or local `AssettoServer.exe`; serves `cm_content/content.json` to Content Manager, plus AI traffic / WeatherFX / Steam auth via `extra_cfg.yml`. Local: extract `assetto-server-win-x64.zip` into `serverfiles/` so `AssettoServer.exe` sits next to `cfg/`
   - **ACC** — via `ghcr.io/ich777/accompetizione-server` (Wine; drop `accServer.exe` from the Steam "ACC Dedicated Server" tool into `acc/`)
 - **Full config UIs** — every ACC `cfg/*.json` file (settings, event incl. session list, eventRules, assistRules, entrylist, bop) and AC `server_cfg.ini` + `entry_list.ini` (sessions, dynamic track, weather slots, assists, penalties)
 - **At-a-glance status** — running/stopped, live track, player count (AC via its HTTP API), start/stop/restart, container logs, file browser
@@ -75,5 +76,5 @@ Env vars: `PORT`, `DATA_DIR`, `HOST_DATA_DIR`, `DOCKER_SOCKET`, `JWT_SECRET`, `G
 - AC needs a Steam account (any account, no game ownership required) with **Steam Guard disabled** for SteamCMD.
 - ACC needs `accServer.exe` copied from the Steam "Assetto Corsa Competizione Dedicated Server" tool — put it in `<data>/servers/<id>/acc/`.
 - Mod zips are extracted with layout detection: `content/cars/…`, `cars/…`, or bare folders all work; zip-slip paths are dropped.
-- The manager writes `serverfiles/cfg/cm_content/content.json` (download links for cars/track) for Content Manager. Vanilla acServer does not serve that file to CM — it is picked up when the server runs via AssettoServer or CM's server wrapper. The public page's download links work regardless.
+- The manager writes `serverfiles/cfg/cm_content/content.json` (download links for cars/track) for Content Manager. Vanilla acServer does not serve that file to CM — use the **AssettoServer** type (EnableServerDetails) or CM's server wrapper. The public page's download links work regardless.
 - AC live telemetry uses the acServer UDP plugin protocol (`UDP_PLUGIN_LOCAL_PORT` / `UDP_PLUGIN_ADDRESS`, auto-written at start). `PLUGIN_ADDRESS` overrides the address servers send events to.

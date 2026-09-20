@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { Card, Badge } from '../components/ui';
-import { Gauge, MapPin, Users, Download, Package, Lock, ExternalLink, Copy, PlayCircle, Radio } from 'lucide-react';
+import { fmtMs } from '../components/live/LiveView';
+import { Gauge, MapPin, Users, Download, Package, Lock, ExternalLink, Copy, PlayCircle, Radio, Trophy } from 'lucide-react';
 
 // Community-facing page — no login required. Shows live server status,
 // rules and mod downloads.
@@ -13,6 +14,7 @@ interface PublicServer {
   id: string; name: string; type: string; game: string; blurb: string;
   running: boolean; track?: string; players?: number | null; maxPlayers?: number | null;
   connectPort?: number; httpPort?: number; hasPassword?: boolean; carGroup?: string; cars?: string[];
+  sessionType?: string; sessionPhase?: string;
   carsMeta?: CarMeta[]; trackMeta?: TrackMeta; joinUrl?: string;
   liveAvailable?: boolean; liveUrl?: string;
   sessions?: { type: string; minutes: number }[];
@@ -28,6 +30,9 @@ export default function PublicPage() {
   const [downloads, setDownloads] = useState<any[]>([]);
   const [selServer, setSelServer] = useState('');
   const [copied, setCopied] = useState('');
+  const [resultsFor, setResultsFor] = useState<PublicServer | null>(null);
+  const [results, setResults] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   useEffect(() => {
     api.get('/public/site').then((r) => setSite(r.data)).catch(() => {});
@@ -44,6 +49,12 @@ export default function PublicPage() {
     const params = selServer ? { serverId: selServer } : {};
     api.get('/public/downloads', { params }).then((r) => setDownloads(r.data.items)).catch(() => {});
   }, [selServer]);
+
+  const openResults = (s: PublicServer) => {
+    setResultsFor(s);
+    api.get(`/public/results/${s.id}`).then((r) => setResults(r.data.results)).catch(() => setResults([]));
+    api.get(`/public/leaderboard/${s.id}`).then((r) => setLeaderboard(r.data.entries)).catch(() => setLeaderboard([]));
+  };
 
   const copyConnect = (s: PublicServer) => {
     if (!site.gameHost || !s.connectPort) return;
@@ -93,6 +104,7 @@ export default function PublicPage() {
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
                     {(s.trackMeta?.name || s.track) && <span className="flex items-center gap-1"><MapPin size={13} />{s.trackMeta?.name || s.track}</span>}
                     <span className="flex items-center gap-1"><Users size={13} />{s.players != null ? `${s.players}${s.maxPlayers ? `/${s.maxPlayers}` : ''}` : s.running ? 'online' : '—'}</span>
+                    {s.sessionType && <span className="text-xs">{s.sessionType}{s.sessionPhase ? ` · ${s.sessionPhase}` : ''}</span>}
                     {site.gameHost && s.connectPort && (
                       <button onClick={() => copyConnect(s)} className="text-xs flex items-center gap-1 hover:text-foreground" title="Copy address">
                         <Copy size={11} />{copied === s.id ? 'copied!' : `${site.gameHost}:${s.connectPort}`}
@@ -125,6 +137,9 @@ export default function PublicPage() {
                         <Radio size={13} className="text-red-400" /> Watch live
                       </Link>
                     )}
+                    <button onClick={() => openResults(s)} className="inline-flex items-center gap-1.5 bg-accent text-foreground px-3 py-1.5 rounded text-xs font-medium hover:bg-border">
+                      <Trophy size={13} /> Results
+                    </button>
                   </div>
                 </div>
               </Card>
@@ -134,6 +149,52 @@ export default function PublicPage() {
             Join buttons need <a href="https://acstuff.club/app/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Content Manager</a>.
           </div>
         </section>
+
+        {resultsFor && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Results — {resultsFor.name}</h2>
+              <button className="text-xs text-muted hover:text-foreground" onClick={() => setResultsFor(null)}>close</button>
+            </div>
+            <Card title="Recent sessions">
+              {results.length === 0 && <div className="text-sm text-muted">No results yet.</div>}
+              <div className="space-y-1">
+                {results.map((r) => (
+                  <div key={r.id} className="flex items-center gap-3 bg-background border border-border rounded px-3 py-2 text-sm">
+                    <Badge tone={r.type === 'race' ? 'red' : r.type === 'qualify' ? 'blue' : 'neutral'}>{r.type}</Badge>
+                    <span className="flex-1 truncate">{r.track || '?'}</span>
+                    <span className="text-xs text-muted">{new Date(r.date).toLocaleString()}</span>
+                    <span className="text-xs text-muted">{r.driverCount} drivers{r.winner ? ` · winner: ${r.winner}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            {leaderboard.length > 0 && (
+              <Card title="Best laps" className="mt-3">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted border-b border-border">
+                      <th className="px-2 py-1.5">Track</th><th className="px-2 py-1.5">Car</th>
+                      <th className="px-2 py-1.5">Driver</th><th className="px-2 py-1.5 text-right">Best lap</th>
+                      <th className="px-2 py-1.5 text-right">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaderboard.map((e, i) => (
+                      <tr key={i} className="border-b border-border/50">
+                        <td className="px-2 py-1.5">{e.track}</td>
+                        <td className="px-2 py-1.5 text-muted">{e.carModel}</td>
+                        <td className="px-2 py-1.5">{e.driverName}</td>
+                        <td className="px-2 py-1.5 text-right font-mono">{fmtMs(e.bestLapMs)}</td>
+                        <td className="px-2 py-1.5 text-right text-muted">{new Date(e.date).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
+          </section>
+        )}
 
         {site.joinInfo && (
           <section>

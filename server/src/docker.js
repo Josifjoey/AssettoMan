@@ -80,6 +80,24 @@ export function buildContainerSpec(server) {
     };
   }
 
+  if (type === 'assettoserver') {
+    // compujuckel/assettoserver — WORKDIR /data, expects cfg/ + content/.
+    // We reuse our layout: <data_dir>/serverfiles is mounted at /data.
+    fs.mkdirSync(path.join(dataDir, 'serverfiles', 'cfg'), { recursive: true });
+    fs.mkdirSync(path.join(dataDir, 'serverfiles', 'content'), { recursive: true });
+    return {
+      Image: IMAGES.assettoserver,
+      name: container_name,
+      Env: [`TZ=${process.env.TZ || 'UTC'}`],
+      ExposedPorts: exposedPorts(type, ports),
+      HostConfig: {
+        Binds: [`${hostServerDir}/serverfiles:/data`],
+        PortBindings: gamePortBindings(type, ports),
+        RestartPolicy: { Name: 'unless-stopped' },
+      },
+    };
+  }
+
   // ac / ac_modded — ich777 steamcmd image, runs acServer.exe via wine.
   fs.mkdirSync(path.join(dataDir, 'serverfiles'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'steamcmd'), { recursive: true });

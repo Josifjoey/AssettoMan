@@ -9,9 +9,12 @@ import fs from 'fs';
 const procs = new Map(); // serverId -> { proc, logs: string[], startedAt }
 
 export function localExePath(server) {
-  return server.type === 'acc'
-    ? path.join(server.data_dir, 'acc', 'accServer.exe')
-    : path.join(server.data_dir, 'serverfiles', 'acServer.exe');
+  if (server.type === 'acc') return path.join(server.data_dir, 'acc', 'accServer.exe');
+  if (server.type === 'assettoserver') {
+    return path.join(server.data_dir, 'serverfiles',
+      process.platform === 'win32' ? 'AssettoServer.exe' : 'AssettoServer');
+  }
+  return path.join(server.data_dir, 'serverfiles', 'acServer.exe');
 }
 
 export function localExePresent(server) {

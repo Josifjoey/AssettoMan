@@ -4,6 +4,7 @@ import path from 'path';
 import { getDb, getSetting } from '../db.js';
 import { getServerStatus } from '../status.js';
 import { getSnapshot, subscribe, isLive } from '../telemetry.js';
+import { listResults, getPublicResult, publicLeaderboard } from '../results.js';
 
 // Public-facing API — no auth. Powers the community page: live server
 // status, mod downloads, server rules.
@@ -82,6 +83,8 @@ router.get('/servers', async (req, res) => {
     if (row.type === 'acc') {
       s.liveAvailable = false;
       s.carGroup = cfg?.settings?.carGroup;
+      s.sessionType = live.sessionType || null;
+      s.sessionPhase = live.sessionPhase || null;
       s.sessions = (cfg?.event?.sessions || []).map((x) => ({ type: x.sessionType, minutes: x.sessionDurationMinutes }));
       s.hasPassword = !!cfg?.settings?.password;
     } else {
@@ -278,6 +281,50 @@ router.get('/track-map/:serverId', async (req, res) => {
       scaleFactor: num('SCALE_FACTOR'), margin: num('MARGIN'),
     },
   });
+});
+
+async function loadPublicServer(req, res) {
+  const db = await getDb();
+  const server = await db.get('SELECT * FROM servers WHERE id = ? AND is_public = 1', req.params.serverId);
+  if (!server) {
+    res.status(404).json({ error: 'Not found' });
+    return null;
+  }
+  return server;
+}
+
+// Results parsing is filesystem-heavy — cache per server for 15s since
+// these endpoints are unauthenticated.
+const resultsCache = new Map(); // key -> { ts, data }
+function cachedResult(key, fn) {
+  const hit = resultsCache.get(key);
+  if (hit && Date.now() - hit.ts < 15000) return hit.data;
+  const data = fn();
+  resultsCache.set(key, { ts: Date.now(), data });
+  return data;
+}
+
+// GET /api/public/results/:serverId — recent session results (list)
+router.get('/results/:serverId', async (req, res) => {
+  const server = await loadPublicServer(req, res);
+  if (!server) return;
+  res.json({ results: cachedResult(`list:${server.id}`, () => listResults(server, 50)) });
+});
+
+// GET /api/public/results/:serverId/:file — one result file (guid-stripped)
+router.get('/results/:serverId/:file', async (req, res) => {
+  const server = await loadPublicServer(req, res);
+  if (!server) return;
+  const r = cachedResult(`file:${server.id}:${req.params.file}`, () => getPublicResult(server, req.params.file));
+  if (!r) return res.status(404).json({ error: 'Result not found' });
+  res.json(r);
+});
+
+// GET /api/public/leaderboard/:serverId — best lap per driver/track/car
+router.get('/leaderboard/:serverId', async (req, res) => {
+  const server = await loadPublicServer(req, res);
+  if (!server) return;
+  res.json({ entries: cachedResult(`lb:${server.id}`, () => publicLeaderboard(server)) });
 });
 
 export default router;

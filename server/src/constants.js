@@ -88,12 +88,14 @@ export const ACC_DRIVER_CATEGORIES = ['Bronze', 'Silver', 'Gold', 'Platinum'];
 export const IMAGES = {
   ac: 'ghcr.io/ich777/steamcmd:assettocorsa',
   ac_modded: 'ghcr.io/ich777/steamcmd:assettocorsa',
+  assettoserver: 'compujuckel/assettoserver:latest',
   acc: 'ghcr.io/ich777/accompetizione-server',
 };
 
 export const DEFAULT_PORTS = {
   ac: { game: 9600, http: 8081, plugin: 9700, pluginListen: 9701 },
   ac_modded: { game: 9610, http: 8091, plugin: 9710, pluginListen: 9711 },
+  assettoserver: { game: 9620, http: 8101, plugin: 9720, pluginListen: 9721 },
   acc: { game: 9201 },
 };
 
@@ -156,6 +158,24 @@ export function defaultAcConfig() {
     entries: [],
     booked: [],
     telemetry: { enabled: true, forwardTo: '' },
+    // AssettoServer extra_cfg.yml fields (only used by type === 'assettoserver')
+    extra: {
+      minimumCspVersion: 2000,
+      useSteamAuth: false,
+      serverDescription: '',
+      enableAi: false,
+      enableWeatherFx: true,
+      enableRealTime: false,
+      enableCarReset: false,
+      enableSessionVote: true,
+      enableKickPlayerVote: true,
+      voteKickMinimumConnectedPlayers: 3,
+      forceLights: false,
+      enableGlobalDrs: true,
+      enableUnlimitedP2P: true,
+      loadingImageUrls: [],
+      enablePlugins: [],
+    },
   };
 }
 
@@ -180,7 +200,7 @@ export function defaultAccConfig() {
       password: '',
       maxCarSlots: 24,
       spectatorPassword: '',
-      dumpLeaderboards: 0,
+      dumpLeaderboards: 1,
       isRaceLocked: 0,
       randomizeTrackWhenEmpty: 0,
       centralEntryListPath: '',
