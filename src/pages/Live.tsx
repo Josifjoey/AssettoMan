@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { api } from '../api';
-import LiveView, { TrackMapCanvas, LiveEvents, LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
-import { Maximize, Radio, Gauge, Users, Thermometer, CloudRain, Flag } from 'lucide-react';
+import LiveView, { TrackMapCanvas, LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
+import { Maximize, Radio, Gauge, Users, Thermometer, CloudRain, Flag, MessageSquare } from 'lucide-react';
 
-// Public spectator page — broadcast-style: track map fills the screen,
-// glass panels float over it. /live (no id) is a hub that auto-selects a
-// live server; ?hud=1 strips the sidebar for OBS overlays.
+// Public spectator page — broadcast layout: map fills the screen, chrome is
+// edge-docked translucent strips (top bar + right timing column).
+// /live (no id) auto-selects a live server; ?hud=1 strips chrome for OBS.
 // Data: SSE stream with a polling fallback.
-
-const glass = 'bg-card/75 backdrop-blur-md border border-border/70 rounded-xl shadow-2xl';
 
 interface LivePickerServer { id: string; name: string; type: string; running?: boolean; liveAvailable?: boolean }
 
@@ -110,82 +108,86 @@ export default function LivePage() {
     return snap.sessionTimeRemainingMs - (Date.now() - lastDataRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snap.sessionTimeRemainingMs, tick]);
+  const towerRight = hud ? 'right-0' : 'right-[23rem]';
 
   return (
     <div ref={rootRef} className="h-screen bg-[#05060a] text-foreground relative overflow-hidden">
-      {/* Track map fills the screen */}
+
+      {/* ============ MAP ============ */}
       {trackMap
         ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} /></div>
-        : <div className="absolute inset-0 hero-band opacity-40" />}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0,0,0,0.5) 100%)' }} />
+        : <div className={`absolute inset-0 ${hud ? '' : 'pr-[23rem]'} grid place-items-center px-6`}>
+            <div className="hero-band absolute inset-0 opacity-30" />
+            <div className="relative text-muted text-sm">No track map available</div>
+          </div>}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 120% at 45% 50%, transparent 55%, rgba(0,0,0,0.5) 100%)' }} />
 
-      {/* ---- Top bar ---- */}
-      <div className="absolute top-0 inset-x-0 z-10 p-3 flex items-start gap-3 pointer-events-none">
-        <div className={`${glass} pointer-events-auto flex items-center gap-1.5 px-2.5 py-2 max-w-[60%]`}>
-          <Link to="/" className="text-muted hover:text-foreground px-1" title="Back to site"><Gauge size={15} className="text-primary" /></Link>
-          {!hud && picker.length > 0 && (
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {picker.map((sv) => (
-                <button key={sv.id} onClick={() => nav(`/live/${sv.id}`)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
-                    sv.id === serverId ? 'bg-red-500/15 text-foreground font-medium ring-1 ring-red-500/50' : 'text-muted hover:text-foreground hover:bg-accent/60'
-                  }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
-                  {sv.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* ============ TOP STRIP ============ */}
+      <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-2 h-12 px-3 bg-card/80 backdrop-blur-md border-b border-border/60">
+        <Link to="/" className="text-muted hover:text-foreground shrink-0" title="Back to site"><Gauge size={15} className="text-primary" /></Link>
+        {!hud && picker.length > 0 && (
+          <div className="flex items-center gap-1 overflow-x-auto min-w-0">
+            {picker.map((sv) => (
+              <button key={sv.id} onClick={() => nav(`/live/${sv.id}`)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
+                  sv.id === serverId ? 'bg-red-500/15 text-foreground font-medium ring-1 ring-red-500/50' : 'text-muted hover:text-foreground hover:bg-accent/60'
+                }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
+                {sv.name}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Session pill */}
-        <div className={`${glass} pointer-events-auto ml-auto flex items-center gap-3 px-3.5 py-2`}>
+        <div className="ml-auto flex items-center gap-3 shrink-0">
           {stale || !snap.active
             ? <span className="w-2 h-2 rounded-full bg-amber-400" title="waiting for data" />
             : <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="LIVE" />}
-          <span className="font-semibold text-sm truncate max-w-[14rem]">{s?.serverName || serverName || 'Live timing'}</span>
+          <span className="font-semibold text-sm truncate max-w-[12rem] hidden sm:inline">{s?.serverName || serverName || 'Live timing'}</span>
           {s && (
             <>
               <span className="w-px h-4 bg-border" />
               <span className="text-xs text-muted">{s.typeName || s.name}</span>
-              <span className="text-sm font-mono tabular-nums font-semibold">{remaining != null ? fmtClock(remaining) : (s.laps ? `${s.laps}L` : '')}</span>
+              <span className="text-sm font-mono tabular-nums font-semibold text-red-400">{remaining != null ? fmtClock(remaining) : (s.laps ? `${s.laps}L` : '')}</span>
               <span className="text-xs text-muted hidden md:flex items-center gap-1"><Flag size={11} />{s.track}{s.trackConfig ? `/${s.trackConfig}` : ''}</span>
               <span className="text-xs text-muted hidden lg:flex items-center gap-1"><Thermometer size={11} />{s.ambientTemp}°/{s.roadTemp}°</span>
               {s.weather && <span className="text-xs text-muted hidden lg:flex items-center gap-1"><CloudRain size={11} />{s.weather}</span>}
-              <span className="text-xs text-muted flex items-center gap-1"><Users size={11} />{snap.connectedCount ?? 0}</span>
+              <span className="text-xs text-muted hidden sm:flex items-center gap-1"><Users size={11} />{snap.connectedCount ?? 0}</span>
             </>
           )}
-          <button onClick={() => rootRef.current?.requestFullscreen?.().catch(() => {})} className="text-muted hover:text-foreground" title="Fullscreen">
-            <Maximize size={14} />
-          </button>
+          <button onClick={() => rootRef.current?.requestFullscreen?.().catch(() => {})} className="text-muted hover:text-foreground" title="Fullscreen"><Maximize size={14} /></button>
         </div>
       </div>
 
-      {/* Waiting banner */}
+      {/* ============ RIGHT TOWER ============ */}
+      {!hud && (
+        <div className="absolute top-12 right-0 bottom-0 w-[23rem] z-10 flex flex-col bg-card/80 backdrop-blur-md border-l border-border/60">
+          <div className="eyebrow px-3 py-2 border-b border-border/60 flex items-center justify-between">
+            <span>Timing</span>
+            <span className="text-muted normal-case tracking-normal">{(snap.cars || []).filter((c) => c.connected).length} cars</span>
+          </div>
+          <LiveView snap={snap} trackMap={null} carNames={carNames} towerOnly />
+          <div className="border-t border-border/60 shrink-0">
+            <div className="eyebrow px-3 py-1.5">Events</div>
+            <div className="h-28 overflow-auto px-1 pb-1">
+              {(snap.events || []).slice(0, 10).map((e, i) => (
+                <div key={i} className="flex gap-2 text-xs px-2 py-0.5">
+                  <span className="text-muted shrink-0">{e.type === 'chat' ? <MessageSquare size={10} className="inline" /> : e.type === 'lap' ? <Flag size={10} className="inline" /> : '·'}</span>
+                  <span className="truncate">{e.text}</span>
+                </div>
+              ))}
+              {(snap.events || []).length === 0 && <div className="text-xs text-muted px-2">No events yet.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* waiting pill — over map area only */}
       {(!snap.active || (stale && !(snap.cars || []).length)) && (
-        <div className={`absolute top-16 inset-x-0 z-10 flex justify-center pointer-events-none ${hud ? '' : 'pr-[26rem]'}`}>
-          <div className="px-4 py-2 text-xs text-amber-300 bg-amber-950/70 border border-amber-900/60 rounded-full backdrop-blur flex items-center gap-2 pointer-events-auto">
+        <div className={`absolute top-16 left-0 ${towerRight} z-10 flex justify-center pointer-events-none`}>
+          <div className="px-4 py-1.5 text-xs text-amber-300 bg-amber-950/70 border border-amber-900/60 rounded-full backdrop-blur flex items-center gap-2">
             <Radio size={12} /> Waiting for live data from the server…
           </div>
-        </div>
-      )}
-
-      {/* ---- Right column: timing tower + events ---- */}
-      {!hud && (
-        <div className="absolute top-[4.5rem] right-3 bottom-3 w-[24rem] z-10 flex flex-col gap-2.5 pointer-events-none">
-          <div className={`${glass} pointer-events-auto flex-1 min-h-0 overflow-hidden flex flex-col`}>
-            <LiveView snap={snap} trackMap={null} carNames={carNames} towerOnly />
-          </div>
-          <div className="pointer-events-auto shrink-0">
-            <LiveEvents events={snap.events || []} heightClass="h-32" />
-          </div>
-        </div>
-      )}
-
-      {/* No map fallback message */}
-      {!trackMap && (
-        <div className={`absolute inset-0 grid place-items-center pointer-events-none ${hud ? '' : 'pr-[26rem]'}`}>
-          <div className="text-muted text-sm">No track map available</div>
         </div>
       )}
     </div>
