@@ -18,7 +18,7 @@ import { writeCmContent, cmContentStatus } from '../cmContent.js';
 import { writeAssettoServerExtraCfg } from '../configAssettoServer.js';
 import { listResults, getResult } from '../results.js';
 import { startTelemetry, stopTelemetry, getSnapshot, telemetrySend, managerAddressFor } from '../telemetry.js';
-import { safeId, trackMapFor, trackImagePath, sendImage, carsMetaFor } from '../contentMeta.js';
+import { safeId, trackMapFor, trackImagePath, sendImage, carsMetaFor, availableContent, carImagePath, carSkinImagePath, externalImageFor } from '../contentMeta.js';
 import { detectAcInstall, importMetadata } from '../acInstall.js';
 
 const router = Router();
@@ -179,10 +179,20 @@ router.put('/:id/config', async (req, res) => {
   }
   const mergedPorts = { ...server.ports, ...(ports || {}) };
 
+  const db = await getDb();
+  // Reject port assignments that collide with another managed server.
+  const mine = ['game', 'http', 'plugin', 'pluginListen'].map((k) => mergedPorts[k]).filter(Boolean);
+  const others = await db.all('SELECT id, name, ports FROM servers WHERE id != ?', server.id);
+  const clash = others.find((r) => {
+    try {
+      const p = JSON.parse(r.ports || '{}');
+      return ['game', 'http', 'plugin', 'pluginListen'].some((k) => p[k] && mine.includes(p[k]));
+    } catch { return false; }
+  });
+  if (clash) return res.status(409).json({ error: `Port conflict with "${clash.name}"` });
+
   const updated = { ...server, config: merged, ports: mergedPorts };
   await writeAllConfigs(updated);
-
-  const db = await getDb();
   await db.run(
     'UPDATE servers SET config = ?, ports = ?, name = COALESCE(?, name), is_public = COALESCE(?, is_public), public_blurb = COALESCE(?, public_blurb), updated_at = ? WHERE id = ?',
     JSON.stringify(merged), JSON.stringify(mergedPorts), name ?? null,
@@ -345,6 +355,41 @@ router.get(['/:id/map-image/:trackId', '/:id/map-image/:trackId/:layout'], async
   const { trackId, layout } = req.params;
   if (!safeId(trackId) || (layout && !safeId(layout))) return res.status(400).json({ error: 'Invalid id' });
   sendImage(res, trackImagePath(server, trackId, layout, { map: true }));
+});
+
+// GET /api/servers/:id/available-content — picker options for config forms.
+// AC-family scans installed content; ACC returns the constants lists.
+router.get('/:id/available-content', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  if (server.type === 'acc') {
+    return res.json({
+      cars: ACC_CARS.map((c) => ({ value: String(c.id), name: c.label, tag: c.group })),
+      tracks: ACC_TRACKS.map((t) => ({ value: t.id, name: t.label, tag: t.dlc })),
+    });
+  }
+  res.json(availableContent(server, (kind, id, sub) =>
+    `/api/servers/${server.id}/content-image/${kind}/${encodeURIComponent(id)}${sub ? `/${encodeURIComponent(sub)}` : ''}`));
+});
+
+// GET /api/servers/:id/content-image/:kind/:contentId(/:subId)? — picker thumbnails.
+// car subId = skin, track subId = layout.
+router.get('/:id/content-image/:kind/:contentId/:subId?', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  const { kind, contentId, subId } = req.params;
+  if (!['car', 'track'].includes(kind) || !safeId(contentId) || (subId && !safeId(subId))) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+  const file = kind === 'car'
+    ? (subId ? carSkinImagePath(server, contentId, subId) : carImagePath(server, contentId))
+    : trackImagePath(server, contentId, subId);
+  if (file && fs.existsSync(file)) return sendImage(res, file);
+  if (!subId) {
+    const ext = await externalImageFor(server.id, kind, contentId);
+    if (ext) return res.redirect(ext);
+  }
+  res.status(404).json({ error: 'Image not found' });
 });
 
 // POST /api/servers/:id/import-ac-metadata — copy ui/previews/maps from a local AC install

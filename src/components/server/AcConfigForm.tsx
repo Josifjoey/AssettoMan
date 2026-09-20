@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { GameServer } from '../../api';
 import { Card, Input, Select, Field, Check, Button, Textarea, Badge } from '../ui';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, MapPin, X } from 'lucide-react';
+import { ContentPickerModal, PickerButton, useAvailableContent } from './ContentPicker';
 
 function setPath(obj: any, path: string[], value: any) {
   const clone = structuredClone(obj);
@@ -24,8 +25,9 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
   const S = cfg.server || {};
   const DT = cfg.dynamicTrack || {};
   const weathers: any[] = cfg.weathers || [];
-  const installedCars: string[] = server.installed?.cars || [];
-  const installedTracks: string[] = server.installed?.tracks || [];
+  const avail = useAvailableContent(server.id);
+  const [picker, setPicker] = useState<null | 'track' | 'cars'>(null);
+  const nameFor = (list: { value: string; name: string }[], id: string) => list.find((o) => o.value === id)?.name || id;
 
   const setWeather = (i: number, k: string, v: any) => set('weathers', weathers.map((w, j) => (j === i ? { ...w, [k]: v } : w)));
   const setSession = (key: string, k: string, v: any) => set(`${key}.${k}`, v);
@@ -41,17 +43,12 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
       <Card title="Server" subtitle="server_cfg.ini — SERVER">
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Server name"><Input disabled={disabled} value={S.name || ''} onChange={(e) => set('server.name', e.target.value)} /></Field>
-          <Field label="Track">
-            {installedTracks.length ? (
-              <Select disabled={disabled} value={S.track || ''} onChange={(e) => set('server.track', e.target.value)}>
-                <option value="">— choose —</option>
-                {installedTracks.map((t) => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            ) : (
-              <Input disabled={disabled} value={S.track || ''} onChange={(e) => set('server.track', e.target.value)} placeholder="magione" />
-            )}
+          <Field label="Track" hint={S.trackConfig ? `Layout: ${S.trackConfig}` : 'Default layout'}>
+            <PickerButton disabled={disabled} icon={<MapPin size={13} />}
+              label={S.track ? nameFor(avail.tracks, S.track) : 'Choose a track…'}
+              mono={S.track ? `${S.track}${S.trackConfig ? ` · ${S.trackConfig}` : ''}` : undefined}
+              onClick={() => setPicker('track')} />
           </Field>
-          <Field label="Track layout/config" hint="e.g. gp, indy — empty for default"><Input disabled={disabled} value={S.trackConfig || ''} onChange={(e) => set('server.trackConfig', e.target.value)} /></Field>
           <Field label="Max clients"><Input disabled={disabled} type="number" value={S.maxClients ?? 12} onChange={(e) => set('server.maxClients', +e.target.value)} /></Field>
           <Field label="Join password" hint="Empty = open"><Input disabled={disabled} type="password" value={S.password || ''} onChange={(e) => set('server.password', e.target.value)} autoComplete="new-password" /></Field>
           <Field label="Admin password"><Input disabled={disabled} type="password" value={S.adminPassword || ''} onChange={(e) => set('server.adminPassword', e.target.value)} autoComplete="new-password" /></Field>
@@ -70,20 +67,22 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         </div>
       </Card>
 
-      <Card title="Cars allowed" subtitle="Entry list pool">
-        {installedCars.length ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-64 overflow-auto">
-            {installedCars.map((car) => (
-              <label key={car} className={`flex items-center gap-2 px-2 py-1.5 rounded border text-xs cursor-pointer ${selectedCars.includes(car) ? 'border-primary bg-accent/60' : 'border-border'}`}>
-                <input type="checkbox" disabled={disabled} checked={selectedCars.includes(car)} onChange={() => toggleCar(car)} className="accent-[#e8344e]" />
-                <span className="truncate">{car}</span>
-              </label>
+      <Card title="Cars allowed" subtitle="Entry list pool"
+        actions={!disabled && <Button variant="secondary" size="sm" type="button" onClick={() => setPicker('cars')}>Browse cars</Button>}>
+        {selectedCars.length === 0 ? (
+          <div className="text-xs text-muted">No cars selected — the server won't accept any car. Browse to add.</div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedCars.map((c) => (
+              <span key={c} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card-2 pl-2.5 pr-1 py-1 text-xs">
+                <span className="font-medium">{nameFor(avail.cars, c)}</span>
+                <span className="font-mono text-[10px] text-muted">{c}</span>
+                {!disabled && (
+                  <button type="button" onClick={() => toggleCar(c)} className="p-0.5 rounded text-muted hover:text-danger"><X size={12} /></button>
+                )}
+              </span>
             ))}
           </div>
-        ) : (
-          <Field label="Cars (semicolon-separated)" hint="No installed content detected yet — enter model IDs manually, e.g. ks_abarth500_assetto_corse;ks_alfa_romeo_4c">
-            <Input disabled={disabled} value={S.cars || ''} onChange={(e) => set('server.cars', e.target.value)} />
-          </Field>
         )}
         <div className="text-xs text-muted mt-2">{selectedCars.length} car(s) selected</div>
       </Card>
@@ -239,6 +238,13 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
           {dirty && <span className="text-xs text-warning">Unsaved changes</span>}
         </div>
       )}
+
+      <ContentPickerModal open={picker === 'track'} onClose={() => setPicker(null)} title="Choose track" kind="track"
+        options={avail.tracks} loading={avail.loading} selected={S.track ? [S.track] : []}
+        onApply={({ value, layout }: any) => { set('server.track', value); set('server.trackConfig', layout || ''); }} />
+      <ContentPickerModal open={picker === 'cars'} onClose={() => setPicker(null)} title="Allowed cars" kind="car"
+        options={avail.cars} loading={avail.loading} multi selected={selectedCars}
+        onApply={(vals: string[]) => set('server.cars', vals.join(';'))} />
     </div>
   );
 }

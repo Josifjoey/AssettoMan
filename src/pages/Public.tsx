@@ -104,7 +104,7 @@ export default function PublicPage() {
   const hasDownloads = downloads.length > 0 || servers.some((s) => s.type !== 'acc');
   const hasResults = servers.length > 0;
   const filteredDownloads = downloads.filter((d) => {
-    if (kindFilter !== 'all' && (d.kind || 'other') !== kindFilter) return false;
+    if (kindFilter !== 'all' && (d.kind === 'mod' ? 'other' : (d.kind || 'other')) !== kindFilter) return false;
     if (search && !`${d.name} ${d.description ?? ''}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });

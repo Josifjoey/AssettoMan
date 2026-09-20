@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api, GameServer } from '../../api';
 import { Card, Input, Select, Field, Check, Button } from '../ui';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Car } from 'lucide-react';
+import { ContentPickerModal, PickerButton, useAvailableContent, PickerOption } from './ContentPicker';
 
 // Entry list editor — AC entry_list.ini entries or ACC entrylist.json +
 // bop.json depending on server type.
@@ -19,6 +20,17 @@ export default function EntriesEditor({ server, disabled, onSave }: { server: Ga
   const entries: any[] = isAcc ? (cfg.entrylist?.entries || []) : (cfg.entries || []);
   const bop: any[] = cfg.bop?.entries || [];
   const installedCars: string[] = server.installed?.cars || [];
+  const avail = useAvailableContent(server.id);
+  const [carPickerIdx, setCarPickerIdx] = useState<number | null>(null);
+  // Options = installed cars + cars allowed in config that aren't installed (marked).
+  const carOptions: PickerOption[] = (() => {
+    const ids = new Set(avail.cars.map((c) => c.value));
+    const extra = String(cfg.server?.cars || '').split(';').filter((id) => id && !ids.has(id))
+      .map((id) => ({ value: id, name: id, tag: 'not installed' }));
+    return [...avail.cars, ...extra];
+  })();
+  const carName = (id: string) => carOptions.find((o) => o.value === id)?.name || id;
+  const skinsFor = (carId: string) => avail.cars.find((o) => o.value === carId)?.skins || [];
 
   const setEntries = (next: any[]) => {
     setCfg((c: any) => isAcc ? { ...c, entrylist: { ...c.entrylist, entries: next } } : { ...c, entries: next });
@@ -64,16 +76,22 @@ export default function EntriesEditor({ server, disabled, onSave }: { server: Ga
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
                   <Field label="Car">
-                    {installedCars.length ? (
-                      <Select disabled={disabled} value={e.car || e.model || ''} onChange={(ev) => setEntry(i, 'car', ev.target.value)}>
-                        <option value="">—</option>
-                        {installedCars.map((c) => <option key={c} value={c}>{c}</option>)}
+                    <PickerButton disabled={disabled} icon={<Car size={13} />}
+                      label={e.car || e.model ? carName(e.car || e.model) : 'Choose a car…'}
+                      mono={e.car || e.model || undefined}
+                      onClick={() => setCarPickerIdx(i)} />
+                  </Field>
+                  <Field label="Skin">
+                    {skinsFor(e.car || e.model).length ? (
+                      <Select disabled={disabled} value={e.skin || ''} onChange={(ev) => setEntry(i, 'skin', ev.target.value)}>
+                        <option value="">— default —</option>
+                        {skinsFor(e.car || e.model).map((s) => <option key={s.value} value={s.value}>{s.name}</option>)}
+                        {e.skin && !skinsFor(e.car || e.model).some((s) => s.value === e.skin) && <option value={e.skin}>{e.skin} (custom)</option>}
                       </Select>
                     ) : (
-                      <Input disabled={disabled} value={e.car || e.model || ''} onChange={(ev) => setEntry(i, 'car', ev.target.value)} />
+                      <Input disabled={disabled} value={e.skin || ''} onChange={(ev) => setEntry(i, 'skin', ev.target.value)} />
                     )}
                   </Field>
-                  <Field label="Skin"><Input disabled={disabled} value={e.skin || ''} onChange={(ev) => setEntry(i, 'skin', ev.target.value)} /></Field>
                   <Field label="Driver name"><Input disabled={disabled} value={e.driverName || ''} onChange={(ev) => setEntry(i, 'driverName', ev.target.value)} /></Field>
                   <Field label="GUID (SteamID64)"><Input disabled={disabled} value={e.guid || ''} onChange={(ev) => setEntry(i, 'guid', ev.target.value)} /></Field>
                   <Field label="Team"><Input disabled={disabled} value={e.team || ''} onChange={(ev) => setEntry(i, 'team', ev.target.value)} /></Field>
@@ -122,6 +140,9 @@ export default function EntriesEditor({ server, disabled, onSave }: { server: Ga
         <div className="sticky bottom-0 -mx-1 px-1 py-3 bg-background/85 backdrop-blur border-t border-border flex items-center gap-3">
           <Button onClick={() => onSave(cfg)}>Save entries</Button>
           {dirty && <span className="text-xs text-warning">Unsaved changes</span>}
+          <ContentPickerModal open={carPickerIdx !== null} onClose={() => setCarPickerIdx(null)} title="Choose car" kind="car"
+            options={carOptions} loading={avail.loading} selected={carPickerIdx !== null ? [entries[carPickerIdx]?.car || entries[carPickerIdx]?.model || ''] : []}
+            onApply={({ value }: any) => { if (carPickerIdx !== null) { setEntry(carPickerIdx, 'car', value); setEntry(carPickerIdx, 'skin', ''); } }} />
         </div>
       )}
     </div>

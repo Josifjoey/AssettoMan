@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { api, GameServer } from '../../api';
 import { Card, Input, Select, Field, Check, Button } from '../ui';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, MapPin } from 'lucide-react';
+import { ContentPickerModal, PickerButton, useAvailableContent } from './ContentPicker';
 
 // Full ACC cfg/*.json editor: settings, event, eventRules, assistRules,
 // configuration. Entries & BoP live in EntriesEditor.
@@ -30,6 +31,9 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
   const R = cfg.eventRules || {};
   const A = cfg.assistRules || {};
   const C = cfg.configuration || {};
+
+  const avail = useAvailableContent(server.id);
+  const [trackPicker, setTrackPicker] = useState(false);
 
   const sessions: any[] = E.sessions || [];
   const setSession = (i: number, k: string, v: any) => {
@@ -71,10 +75,11 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
 
       <Card title="Event" subtitle="event.json">
         <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Track">
-            <Select disabled={disabled} value={E.track || 'spa'} onChange={(e) => set('event.track', e.target.value)}>
-              {(meta?.accTracks || []).map((t: any) => <option key={t.id} value={t.id}>{t.label}{t.dlc !== 'base' ? ` (${t.dlc})` : ''}</option>)}
-            </Select>
+          <Field label="Track" hint="e.g. Mount Panorama (Bathurst) → mount_panorama">
+            <PickerButton disabled={disabled} icon={<MapPin size={13} />}
+              label={avail.tracks.find((t) => t.value === E.track)?.name || E.track || 'Choose a track…'}
+              mono={E.track}
+              onClick={() => setTrackPicker(true)} />
           </Field>
           <Field label="Ambient temp °C"><Input disabled={disabled} type="number" value={E.ambientTemp ?? 26} onChange={(e) => set('event.ambientTemp', +e.target.value)} /></Field>
           <Field label="Cloud level (0–1)"><Input disabled={disabled} type="number" step="0.05" min={0} max={1} value={E.cloudLevel ?? 0.3} onChange={(e) => set('event.cloudLevel', +e.target.value)} /></Field>
@@ -169,6 +174,10 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
           {dirty && <span className="text-xs text-warning">Unsaved changes</span>}
         </div>
       )}
+
+      <ContentPickerModal open={trackPicker} onClose={() => setTrackPicker(false)} title="Choose track" kind="track"
+        options={avail.tracks} loading={avail.loading} selected={E.track ? [E.track] : []}
+        onApply={({ value }: any) => set('event.track', value)} />
     </div>
   );
 }

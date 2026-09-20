@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getSnapshot } from './telemetry.js';
+import { getDb } from './db.js';
 
 // Shared helpers for reading AC content metadata (ui_car/ui_track json,
 // images, track map projection). Used by both public and admin routes.
@@ -44,20 +45,37 @@ export function sendImage(res, file) {
   res.sendFile(file);
 }
 
-// Car preview: first skin preview.jpg, else ui badge.png.
+// Car preview: ui/preview, else first skin preview.jpg, else ui badge.png.
+// AC puts skins at cars/<id>/skins/<skin>/ — a few mods nest them under ui/.
 export function carImagePath(server, carId) {
-  const dir = path.join(contentDir(server), 'cars', carId, 'ui');
-  if (!dir.startsWith(contentDir(server))) return null;
-  try {
-    const skinsDir = path.join(dir, 'skins');
-    const firstSkin = fs.readdirSync(skinsDir, { withFileTypes: true }).find((d) => d.isDirectory())?.name;
-    if (firstSkin && safeId(firstSkin)) {
+  const carDir = path.join(contentDir(server), 'cars', carId);
+  if (!carDir.startsWith(contentDir(server))) return null;
+  for (const name of ['preview.jpg', 'preview.png']) {
+    const p = path.join(carDir, 'ui', name);
+    if (fs.existsSync(p)) return p;
+  }
+  for (const skinsDir of [path.join(carDir, 'skins'), path.join(carDir, 'ui', 'skins')]) {
+    const firstSkin = listDirs(skinsDir)[0];
+    if (firstSkin) {
       const p = path.join(skinsDir, firstSkin, 'preview.jpg');
       if (fs.existsSync(p)) return p;
     }
-  } catch { /* no skins dir */ }
-  const badge = path.join(dir, 'badge.png');
+  }
+  const badge = path.join(carDir, 'ui', 'badge.png');
   return fs.existsSync(badge) ? badge : null;
+}
+
+// Livery/preview image for a specific skin.
+export function carSkinImagePath(server, carId, skinId) {
+  const carDir = path.join(contentDir(server), 'cars', carId);
+  if (!carDir.startsWith(contentDir(server))) return null;
+  for (const root of [path.join(carDir, 'skins', skinId), path.join(carDir, 'ui', 'skins', skinId)]) {
+    for (const name of ['preview.jpg', 'livery.png', 'preview.png']) {
+      const p = path.join(root, name);
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return null;
 }
 
 // Track ui image (preview/outline) or map.png from the track/layout root.
@@ -125,4 +143,53 @@ export function carsMetaFor(server, imageUrlFor) {
     const ui = parseJsonLoose(path.join(contentDir(server), 'cars', id, 'ui', 'ui_car.json'));
     return { id, name: ui?.name || id, brand: ui?.brand || null, previewUrl: imageUrlFor ? imageUrlFor(id) : undefined };
   });
+}
+
+function listDirs(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && safeId(d.name))
+      .map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+// Scan the server's installed AC content into picker-ready option lists.
+// imageUrlFor(kind, id, subId?) builds the admin/public image URL.
+export function availableContent(server, imageUrlFor) {
+  const cdir = contentDir(server);
+  const cars = listDirs(path.join(cdir, 'cars')).map((id) => {
+    const ui = parseJsonLoose(path.join(cdir, 'cars', id, 'ui', 'ui_car.json'));
+    const skinsRoot = [path.join(cdir, 'cars', id, 'skins'), path.join(cdir, 'cars', id, 'ui', 'skins')]
+      .find((d) => fs.existsSync(d));
+    const skins = listDirs(skinsRoot || '').map((s) => {
+      const su = parseJsonLoose(path.join(skinsRoot, s, 'ui_skin.json'));
+      return { value: s, name: su?.skinname || s, image: imageUrlFor('car', id, s) };
+    });
+    return { value: id, name: ui?.name || id, sub: ui?.brand || undefined, image: imageUrlFor('car', id), skins };
+  });
+  const tracks = listDirs(path.join(cdir, 'tracks')).map((id) => {
+    const ui = parseJsonLoose(path.join(cdir, 'tracks', id, 'ui', 'ui_track.json'));
+    const layouts = listDirs(path.join(cdir, 'tracks', id))
+      .filter((d) => fs.existsSync(path.join(cdir, 'tracks', id, d, 'ui', 'ui_track.json')))
+      .map((l) => ({
+        value: l,
+        name: parseJsonLoose(path.join(cdir, 'tracks', id, l, 'ui', 'ui_track.json'))?.name || l,
+        image: imageUrlFor('track', id, l),
+      }));
+    return { value: id, name: ui?.name || id, sub: ui?.country || undefined, image: imageUrlFor('track', id), layouts };
+  });
+  return { cars, tracks };
+}
+
+// External preview image stored when the content was added as a link.
+export async function externalImageFor(serverId, kind, contentId) {
+  const db = await getDb();
+  const it = await db.get(
+    'SELECT preview_image FROM content_items WHERE server_id = ? AND kind = ? AND content_id = ? AND enabled = 1 AND preview_image IS NOT NULL AND preview_image != \'\'',
+    serverId, kind, contentId
+  );
+  const url = it?.preview_image;
+  return url && /^https?:\/\//i.test(url) ? url : null;
 }
