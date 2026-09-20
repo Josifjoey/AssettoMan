@@ -11,12 +11,50 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 0% 0%, rgba(232, 52, 78, 0.08), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 100% 0%, rgba(59, 130, 246, 0.06), transparent 60%);
+}
+
+#root { position: relative; z-index: 1; }
+
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #22303f; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #1c2633; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3646; }
+
+/* Brand gradient */
+.bg-brand { background-image: linear-gradient(135deg, #ff4d3d 0%, #e8344e 55%, #b0173a 100%); }
+.text-brand {
+  background-image: linear-gradient(135deg, #ff4d3d 0%, #e8344e 55%, #b0173a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Faint diagonal racing stripes */
+.stripes {
+  background-image: repeating-linear-gradient(115deg, transparent 0 26px, rgba(255, 255, 255, 0.018) 26px 28px);
+}
 
 .hero-band {
   background:
     radial-gradient(ellipse 80% 120% at 70% -20%, rgba(232, 52, 78, 0.12), transparent 60%),
-    repeating-linear-gradient(115deg, transparent 0 26px, rgba(255, 255, 255, 0.022) 26px 28px),
-    #0b0f14;
+    repeating-linear-gradient(115deg, transparent 0 26px, rgba(255, 255, 255, 0.018) 26px 28px),
+    #07090d;
+}
+
+/* Typography helpers */
+.font-display { letter-spacing: -0.02em; }
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #8593a6;
+  font-weight: 600;
 }

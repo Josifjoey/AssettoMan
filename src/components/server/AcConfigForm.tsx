@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GameServer } from '../../api';
-import { Card, Input, Select, Field, Check, Button, Textarea } from '../ui';
+import { Card, Input, Select, Field, Check, Button, Textarea, Badge } from '../ui';
 import { Plus, Trash2 } from 'lucide-react';
 
 function setPath(obj: any, path: string[], value: any) {
@@ -14,10 +14,12 @@ function setPath(obj: any, path: string[], value: any) {
 const WEATHER_PRESETS = ['1_heavy_fog', '2_light_fog', '3_clear', '4_mid_clear', '5_light_clouds', '6_mid_clouds', '7_heavy_clouds'];
 
 export default function AcConfigForm({ server, disabled, onSave }: { server: GameServer; disabled: boolean; onSave: (config: any, ports?: any) => void }) {
-  const [cfg, setCfg] = useState<any>(() => ({ telemetry: { enabled: true, forwardTo: '' }, ...server.config }));
+  const initial = { telemetry: { enabled: true, forwardTo: '' }, ...server.config };
+  const [cfg, setCfg] = useState<any>(() => initial);
   const [gamePort, setGamePort] = useState(server.ports.game);
   const [httpPort, setHttpPort] = useState(server.ports.http || 8081);
   const set = (path: string, value: any) => setCfg((c: any) => setPath(c, path.split('.'), value));
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(initial) || gamePort !== server.ports.game || httpPort !== (server.ports.http || 8081);
 
   const S = cfg.server || {};
   const DT = cfg.dynamicTrack || {};
@@ -36,8 +38,8 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
 
   return (
     <div className="space-y-4">
-      <Card title="Server (server_cfg.ini — SERVER)">
-        <div className="grid md:grid-cols-2 gap-3">
+      <Card title="Server" subtitle="server_cfg.ini — SERVER">
+        <div className="grid md:grid-cols-3 gap-3">
           <Field label="Server name"><Input disabled={disabled} value={S.name || ''} onChange={(e) => set('server.name', e.target.value)} /></Field>
           <Field label="Track">
             {installedTracks.length ? (
@@ -68,7 +70,7 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         </div>
       </Card>
 
-      <Card title="Cars allowed">
+      <Card title="Cars allowed" subtitle="Entry list pool">
         {installedCars.length ? (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-h-64 overflow-auto">
             {installedCars.map((car) => (
@@ -86,22 +88,28 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         <div className="text-xs text-muted mt-2">{selectedCars.length} car(s) selected</div>
       </Card>
 
-      <Card title="Sessions">
+      <Card title="Sessions" subtitle="Rotation">
         <div className="grid md:grid-cols-3 gap-4">
-          <div className="bg-background border border-border rounded p-3 space-y-2">
-            <Check disabled={disabled} label="Practice enabled" checked={cfg.practice?.enabled !== false} onChange={(v) => set('practice.enabled', v)} />
+          <div className="bg-card-2 border border-border border-t-2 border-t-info rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Badge tone="blue">P</Badge>
+              <Check disabled={disabled} label="Practice" checked={cfg.practice?.enabled !== false} onChange={(v) => set('practice.enabled', v)} />
+            </div>
             <Field label="Name"><Input disabled={disabled} value={cfg.practice?.name || 'Free Practice'} onChange={(e) => setSession('practice', 'name', e.target.value)} /></Field>
             <Field label="Duration (min)"><Input disabled={disabled} type="number" value={cfg.practice?.timeMinutes ?? 20} onChange={(e) => setSession('practice', 'timeMinutes', +e.target.value)} /></Field>
             <Check disabled={disabled} label="Open join" checked={cfg.practice?.isOpen !== 0} onChange={(v) => setSession('practice', 'isOpen', v ? 1 : 0)} />
           </div>
-          <div className="bg-background border border-border rounded p-3 space-y-2">
-            <Check disabled={disabled} label="Qualify enabled" checked={cfg.qualify?.enabled !== false} onChange={(v) => set('qualify.enabled', v)} />
+          <div className="bg-card-2 border border-border border-t-2 border-t-warning rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Badge tone="amber">Q</Badge>
+              <Check disabled={disabled} label="Qualify" checked={cfg.qualify?.enabled !== false} onChange={(v) => set('qualify.enabled', v)} />
+            </div>
             <Field label="Name"><Input disabled={disabled} value={cfg.qualify?.name || 'Qualifying'} onChange={(e) => setSession('qualify', 'name', e.target.value)} /></Field>
             <Field label="Duration (min)"><Input disabled={disabled} type="number" value={cfg.qualify?.timeMinutes ?? 15} onChange={(e) => setSession('qualify', 'timeMinutes', +e.target.value)} /></Field>
             <Field label="Max wait %"><Input disabled={disabled} type="number" value={S.qualifyMaxWaitPerc ?? 400} onChange={(e) => set('server.qualifyMaxWaitPerc', +e.target.value)} /></Field>
           </div>
-          <div className="bg-background border border-border rounded p-3 space-y-2">
-            <div className="text-sm font-medium">Race</div>
+          <div className="bg-card-2 border border-border border-t-2 border-t-danger rounded-lg p-4 space-y-3">
+            <Badge tone="red">R</Badge>
             <Field label="Laps" hint="0 = timed race"><Input disabled={disabled} type="number" value={cfg.race?.laps ?? 10} onChange={(e) => setSession('race', 'laps', +e.target.value)} /></Field>
             <Field label="Time (min)" hint="used when laps = 0"><Input disabled={disabled} type="number" value={cfg.race?.timeMinutes ?? 0} onChange={(e) => setSession('race', 'timeMinutes', +e.target.value)} /></Field>
             <Field label="Wait time (sec)"><Input disabled={disabled} type="number" value={cfg.race?.waitTime ?? 60} onChange={(e) => setSession('race', 'waitTime', +e.target.value)} /></Field>
@@ -152,11 +160,11 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         </div>
       </Card>
 
-      <Card title="Weather" actions={!disabled && <Button variant="ghost" type="button" onClick={() => set('weathers', [...weathers, { graphics: '3_clear', baseTempAmbient: 22, baseTempRoad: 4, variationAmbient: 1, variationRoad: 1, windBaseSpeedMin: 0, windBaseSpeedMax: 0, windBaseDirection: 0, windVariationDirection: 0 }])}><Plus size={13} className="inline mr-1" />Add slot</Button>}>
+      <Card title="Weather" subtitle="Slots" actions={!disabled && <Button variant="secondary" size="sm" type="button" icon={<Plus size={12} />} onClick={() => set('weathers', [...weathers, { graphics: '3_clear', baseTempAmbient: 22, baseTempRoad: 4, variationAmbient: 1, variationRoad: 1, windBaseSpeedMin: 0, windBaseSpeedMax: 0, windBaseDirection: 0, windVariationDirection: 0 }])}>Add slot</Button>}>
         {weathers.length === 0 && <div className="text-xs text-muted">No weather slots — server uses default conditions.</div>}
         <div className="space-y-2">
           {weathers.map((w, i) => (
-            <div key={i} className="grid grid-cols-4 md:grid-cols-8 gap-2 items-end bg-background border border-border rounded p-2">
+            <div key={i} className="grid grid-cols-4 md:grid-cols-8 gap-2 items-end bg-card-2 border border-border rounded-lg p-3 hover:border-border-strong transition-colors">
               <Field label={`Slot ${i} graphics`}>
                 <Select disabled={disabled} value={w.graphics} onChange={(e) => setWeather(i, 'graphics', e.target.value)}>
                   {WEATHER_PRESETS.map((p) => <option key={p}>{p}</option>)}
@@ -169,13 +177,13 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
               <Field label="Wind min"><Input disabled={disabled} type="number" value={w.windBaseSpeedMin} onChange={(e) => setWeather(i, 'windBaseSpeedMin', +e.target.value)} /></Field>
               <Field label="Wind max"><Input disabled={disabled} type="number" value={w.windBaseSpeedMax} onChange={(e) => setWeather(i, 'windBaseSpeedMax', +e.target.value)} /></Field>
               <Field label="Wind dir"><Input disabled={disabled} type="number" value={w.windBaseDirection} onChange={(e) => setWeather(i, 'windBaseDirection', +e.target.value)} /></Field>
-              {!disabled && <Button variant="ghost" type="button" onClick={() => set('weathers', weathers.filter((_, j) => j !== i))}><Trash2 size={13} /></Button>}
+              {!disabled && <Button variant="ghost" size="sm" type="button" onClick={() => set('weathers', weathers.filter((_, j) => j !== i))}><Trash2 size={13} /></Button>}
             </div>
           ))}
         </div>
       </Card>
 
-      <Card title="Network">
+      <Card title="Network" subtitle="Ports">
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Game port (TCP+UDP)" hint="Re-provision after change"><Input disabled={disabled} type="number" value={gamePort} onChange={(e) => setGamePort(+e.target.value)} /></Field>
           <Field label="HTTP port" hint="Status API"><Input disabled={disabled} type="number" value={httpPort} onChange={(e) => setHttpPort(+e.target.value)} /></Field>
@@ -183,7 +191,7 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         </div>
       </Card>
 
-      <Card title="Live telemetry">
+      <Card title="Live telemetry" subtitle="UDP plugin">
         <p className="text-xs text-muted mb-3">Built-in UDP plugin feed powering the live timing page and admin controls.</p>
         <div className="space-y-3">
           <Check disabled={disabled} label="Enable live telemetry" checked={cfg.telemetry?.enabled !== false} onChange={(v) => set('telemetry.enabled', v)} hint="Writes UDP_PLUGIN_* into server_cfg.ini at start — manual UDP plugin fields are ignored while enabled" />
@@ -196,7 +204,7 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
       </Card>
 
       {server.type === 'assettoserver' && (
-        <Card title="AssettoServer (extra_cfg.yml)">
+        <Card title="AssettoServer" subtitle="extra_cfg.yml">
           <div className="grid md:grid-cols-3 gap-3">
             <Field label="Minimum CSP version" hint="0 = don't require CSP"><Input disabled={disabled} type="number" value={cfg.extra?.minimumCspVersion ?? 0} onChange={(e) => set('extra.minimumCspVersion', +e.target.value)} /></Field>
             <Field label="Vote-kick min. players"><Input disabled={disabled} type="number" value={cfg.extra?.voteKickMinimumConnectedPlayers ?? 3} onChange={(e) => set('extra.voteKickMinimumConnectedPlayers', +e.target.value)} /></Field>
@@ -225,7 +233,12 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         </Card>
       )}
 
-      {!disabled && <Button onClick={() => onSave(cfg, { game: gamePort, http: httpPort })}>Save configuration</Button>}
+      {!disabled && (
+        <div className="sticky bottom-0 -mx-1 px-1 py-3 bg-background/85 backdrop-blur border-t border-border flex items-center gap-3">
+          <Button onClick={() => onSave(cfg, { game: gamePort, http: httpPort })}>Save configuration</Button>
+          {dirty && <span className="text-xs text-warning">Unsaved changes</span>}
+        </div>
+      )}
     </div>
   );
 }

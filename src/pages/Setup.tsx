@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../auth';
-import { Card, Input, Button, Field } from '../components/ui';
+import { Input, Button, Field } from '../components/ui';
 import { Gauge } from 'lucide-react';
+import { AuthHero } from './Login';
 
 export default function SetupPage() {
   const { setup } = useAuth();
@@ -11,6 +12,8 @@ export default function SetupPage() {
   const [confirm, setConfirm] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const strength = password.length === 0 ? '' : password.length < 8 ? 'Too short (min 8)' : password.length < 12 ? 'OK' : 'Strong';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,23 +30,23 @@ export default function SetupPage() {
   };
 
   return (
-    <div className="min-h-screen grid place-items-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2 justify-center mb-6">
-          <Gauge className="text-primary" size={28} />
-          <h1 className="text-2xl font-bold">AssettoMan</h1>
-        </div>
-        <Card title="First-run setup">
-          <p className="text-sm text-muted mb-4">Create the administrator account. You can add manager accounts later.</p>
-          <form onSubmit={submit} className="space-y-3">
+    <div className="min-h-screen flex">
+      <AuthHero />
+      <div className="flex-1 grid place-items-center p-8">
+        <div className="w-full max-w-sm">
+          <div className="md:hidden flex items-center gap-2 mb-8"><Gauge className="text-primary" size={24} /><span className="font-bold font-display">AssettoMan</span></div>
+          <div className="eyebrow mb-1">First-run setup</div>
+          <h2 className="text-2xl font-bold font-display mb-1">Create the admin account</h2>
+          <p className="text-sm text-muted mb-6">You can add manager accounts later.</p>
+          <form onSubmit={submit} className="space-y-4">
             <Field label="Username"><Input value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus /></Field>
             <Field label="Display name (optional)"><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></Field>
-            <Field label="Password" hint="Minimum 8 characters"><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /></Field>
+            <Field label="Password" hint={strength || 'Minimum 8 characters'}><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} /></Field>
             <Field label="Confirm password"><Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></Field>
-            {err && <div className="text-sm text-red-400">{err}</div>}
-            <Button type="submit" disabled={busy} className="w-full">{busy ? 'Creating…' : 'Create admin account'}</Button>
+            {err && <div className="text-sm text-danger">{err}</div>}
+            <Button type="submit" loading={busy} className="w-full">{busy ? 'Creating…' : 'Create admin account'}</Button>
           </form>
-        </Card>
+        </div>
       </div>
     </div>
   );

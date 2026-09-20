@@ -27,7 +27,7 @@ export default function FileBrowser({ serverId }: { serverId: string }) {
 
   return (
     <Card
-      title="Server files"
+      title="Server files" subtitle="data dir"
       actions={<Button variant="ghost" onClick={() => load()}><RefreshCw size={13} /></Button>}
     >
       <div className="flex items-center gap-1 text-xs text-muted mb-3 flex-wrap">
@@ -40,7 +40,7 @@ export default function FileBrowser({ serverId }: { serverId: string }) {
         ))}
       </div>
       {err && <div className="text-sm text-red-400 mb-2">{err}</div>}
-      <div className="border border-border rounded divide-y divide-border max-h-[32rem] overflow-auto">
+      <div className="border border-border rounded-lg divide-y divide-border max-h-[32rem] overflow-auto">
         {path && (
           <button className="w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent/50 text-muted" onClick={() => load(crumbs.slice(0, -1).join('/'))}>
             <ArrowUp size={14} /> ..

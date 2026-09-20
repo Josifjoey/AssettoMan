@@ -147,7 +147,7 @@ export default function PublicPage() {
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3 text-sm">
             <Flag size={16} className="text-primary shrink-0" />
             <span>AssettoMan isn't set up yet — create the admin account to get started.</span>
-            <Link to="/setup" className="ml-auto shrink-0 bg-primary text-white px-3 py-1.5 rounded text-xs font-medium hover:brightness-110">Set up now</Link>
+            <Link to="/setup" className="ml-auto shrink-0 bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:brightness-110">Set up now</Link>
           </div>
         </div>
       )}
@@ -265,7 +265,7 @@ export default function PublicPage() {
                     {/* actions */}
                     <div className="flex items-center gap-2 flex-wrap mt-auto pt-1">
                       {s.joinUrl && (
-                        <a href={s.joinUrl} className="inline-flex items-center gap-1.5 bg-primary text-white px-3 py-1.5 rounded text-xs font-medium hover:brightness-110">
+                        <a href={s.joinUrl} className="inline-flex items-center gap-1.5 bg-brand text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:brightness-110">
                           <PlayCircle size={13} /> Join in Content Manager
                         </a>
                       )}

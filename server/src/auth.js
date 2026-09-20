@@ -31,6 +31,19 @@ export function clearAuthCookie(res) {
 }
 
 // Reads token from cookie or Authorization header; attaches req.user or 401s.
+// User rows are re-read from the DB (cached 30s per id) so deleted/deactivated
+// users and role changes take effect before the token expires.
+const USER_CACHE_TTL = 30_000;
+const userCache = new Map(); // id -> { user, at }
+async function loadUser(id) {
+  const hit = userCache.get(id);
+  if (hit && Date.now() - hit.at < USER_CACHE_TTL) return hit.user;
+  const db = await getDb();
+  const user = await db.get('SELECT id, username, role, display_name, is_active FROM users WHERE id = ?', id);
+  userCache.set(id, { user, at: Date.now() });
+  return user;
+}
+
 export async function requireAuth(req, res, next) {
   try {
     const bearer = req.headers.authorization?.startsWith('Bearer ')
@@ -40,9 +53,11 @@ export async function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ error: 'Not authenticated' });
 
     const payload = jwt.verify(token, JWT_SECRET);
-    const db = await getDb();
-    const user = await db.get('SELECT id, username, role, display_name, is_active FROM users WHERE id = ?', payload.sub);
-    if (!user || !user.is_active) return res.status(401).json({ error: 'Account disabled or missing' });
+    const user = await loadUser(payload.sub);
+    if (!user || !user.is_active) {
+      clearAuthCookie(res);
+      return res.status(401).json({ error: 'Account disabled or missing' });
+    }
 
     req.user = user;
     next();

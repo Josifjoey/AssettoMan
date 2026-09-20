@@ -2,7 +2,9 @@ import React from 'react';
 import { Routes, Route, Navigate, Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import { clsx } from 'clsx';
-import { Gauge, Server, Package, Users, Settings as SettingsIcon, LogOut, Globe, Activity } from 'lucide-react';
+import { Gauge, Server, Package, Users, Settings as SettingsIcon, LogOut, Globe, Activity, ExternalLink } from 'lucide-react';
+import { ToastProvider, Button, Badge } from './components/ui';
+import { useSystemHealth } from './hooks';
 
 import SetupPage from './pages/Setup';
 import LoginPage from './pages/Login';
@@ -23,36 +25,96 @@ function Protected({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function NavItem({ to, end, icon, label }: { to: string; end?: boolean; icon: React.ReactNode; label: string }) {
+  return (
+    <NavLink
+      to={to} end={end} title={label}
+      className={({ isActive }) => clsx(
+        'relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors duration-150',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+        isActive ? 'bg-accent text-foreground font-medium' : 'text-muted hover:text-foreground hover:bg-accent/60'
+      )}
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-brand" />}
+          <span className="shrink-0">{icon}</span>
+          <span className="hidden lg:inline truncate">{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const nav = useNavigate();
-  const linkCls = ({ isActive }: { isActive: boolean }) =>
-    clsx('flex items-center gap-2 px-3 py-2 rounded text-sm', isActive ? 'bg-accent text-foreground' : 'text-muted hover:text-foreground');
+  const health = useSystemHealth();
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-56 shrink-0 border-r border-border bg-card/50 flex flex-col">
-        <div className="px-4 py-4 border-b border-border">
-          <div className="font-bold text-lg flex items-center gap-2"><Gauge className="text-primary" size={20} /> AssettoMan</div>
-          <div className="text-xs text-muted mt-0.5">Assetto Server Manager</div>
+      <aside className="w-14 lg:w-60 shrink-0 border-r border-border bg-card/60 backdrop-blur flex flex-col sticky top-0 h-screen">
+        <div className="px-3 lg:px-5 h-16 flex items-center gap-2.5 border-b border-border">
+          <div className="w-8 h-8 rounded-lg bg-brand grid place-items-center shrink-0 shadow-lg">
+            <Gauge size={18} className="text-white" />
+          </div>
+          <div className="hidden lg:block min-w-0">
+            <div className="font-bold font-display leading-tight">AssettoMan</div>
+            <div className="eyebrow text-[9px]">Server Manager</div>
+          </div>
         </div>
-        <nav className="p-2 space-y-1 flex-1">
-          <NavLink to="/admin" end className={linkCls}><Activity size={16} /> Dashboard</NavLink>
-          <NavLink to="/admin/servers/new" className={linkCls}><Server size={16} /> New Server</NavLink>
-          <NavLink to="/admin/content" className={linkCls}><Package size={16} /> Content</NavLink>
-          {user?.role === 'admin' && <NavLink to="/admin/accounts" className={linkCls}><Users size={16} /> Accounts</NavLink>}
-          <NavLink to="/admin/settings" className={linkCls}><SettingsIcon size={16} /> Settings</NavLink>
-          <Link to="/" target="_blank" className="flex items-center gap-2 px-3 py-2 rounded text-sm text-muted hover:text-foreground"><Globe size={16} /> Public Page</Link>
+        <nav className="p-2 lg:p-3 space-y-1 flex-1 overflow-y-auto">
+          <div className="eyebrow px-3 pt-2 pb-1 hidden lg:block">Manage</div>
+          <NavItem to="/admin" end icon={<Activity size={16} />} label="Dashboard" />
+          <NavItem to="/admin/servers/new" icon={<Server size={16} />} label="New Server" />
+          <NavItem to="/admin/content" icon={<Package size={16} />} label="Content" />
+          {user?.role === 'admin' && (
+            <>
+              <div className="eyebrow px-3 pt-3 pb-1 hidden lg:block">Admin</div>
+              <NavItem to="/admin/accounts" icon={<Users size={16} />} label="Accounts" />
+            </>
+          )}
+          <div className="eyebrow px-3 pt-3 pb-1 hidden lg:block">System</div>
+          <NavItem to="/admin/settings" icon={<SettingsIcon size={16} />} label="Settings" />
+          <Link to="/" target="_blank" title="Public Page"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-accent/60 transition-colors duration-150">
+            <Globe size={16} className="shrink-0" />
+            <span className="hidden lg:flex items-center gap-1 truncate">Public Page <ExternalLink size={11} /></span>
+          </Link>
         </nav>
-        <div className="p-3 border-t border-border">
-          <div className="text-sm">{user?.display_name || user?.username}</div>
-          <div className="text-xs text-muted mb-2">{user?.role}</div>
-          <button onClick={async () => { await logout(); nav('/login'); }} className="flex items-center gap-1.5 text-xs text-muted hover:text-foreground">
-            <LogOut size={14} /> Sign out
-          </button>
+        <div className="p-2 lg:p-3 border-t border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-brand grid place-items-center text-white text-xs font-bold shrink-0">
+              {(user?.display_name || user?.username || '?')[0].toUpperCase()}
+            </div>
+            <div className="hidden lg:block min-w-0 flex-1">
+              <div className="text-sm truncate">{user?.display_name || user?.username}</div>
+              <Badge tone={user?.role === 'admin' ? 'brand' : 'neutral'}>{user?.role}</Badge>
+            </div>
+            <button onClick={async () => { await logout(); nav('/login'); }} title="Sign out"
+                    className="hidden lg:block text-muted hover:text-foreground transition-colors">
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
       </aside>
-      <main className="flex-1 p-6 overflow-auto">{children}</main>
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/80 backdrop-blur flex items-center gap-3 px-6">
+          <div className="flex-1" />
+          {health && (
+            <Badge tone={health.docker ? 'blue' : 'neutral'} dot>
+              {health.docker ? 'Docker' : 'Local runtime'}
+            </Badge>
+          )}
+          <Link to="/" target="_blank">
+            <Button variant="ghost" size="sm" icon={<Globe size={13} />}>View public site</Button>
+          </Link>
+        </header>
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-6xl mx-auto px-8 py-6 space-y-6">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }
@@ -103,7 +165,9 @@ function LegacyServerRedirect() {
 export default function App() {
   return (
     <AuthProvider>
-      <AuthedApp />
+      <ToastProvider>
+        <AuthedApp />
+      </ToastProvider>
     </AuthProvider>
   );
 }

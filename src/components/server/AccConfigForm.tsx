@@ -18,6 +18,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
   const [cfg, setCfg] = useState<any>(server.config);
   const [meta, setMeta] = useState<any>(null);
   const [ports, setPorts] = useState(server.ports.game);
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(server.config) || ports !== server.ports.game;
 
   useEffect(() => {
     api.get('/servers/meta').then((r) => setMeta(r.data)).catch(() => {});
@@ -38,7 +39,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
 
   return (
     <div className="space-y-4">
-      <Card title="Server identity (settings.json)">
+      <Card title="Server identity" subtitle="settings.json">
         <div className="grid md:grid-cols-2 gap-3">
           <Field label="Server name"><Input disabled={disabled} value={S.serverName || ''} onChange={(e) => set('settings.serverName', e.target.value)} /></Field>
           <Field label="Car group">
@@ -68,7 +69,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
         </div>
       </Card>
 
-      <Card title="Event (event.json)">
+      <Card title="Event" subtitle="event.json">
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Track">
             <Select disabled={disabled} value={E.track || 'spa'} onChange={(e) => set('event.track', e.target.value)}>
@@ -100,7 +101,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
           </div>
           <div className="space-y-2">
             {sessions.map((s, i) => (
-              <div key={i} className="grid grid-cols-6 gap-2 items-end bg-background border border-border rounded p-2">
+              <div key={i} className={`grid grid-cols-6 gap-2 items-end bg-card-2 border border-border border-t-2 rounded-lg p-3 hover:border-border-strong transition-colors ${s.sessionType === 'R' ? 'border-t-danger' : s.sessionType === 'Q' ? 'border-t-warning' : 'border-t-info'}`}>
                 <Field label="Type">
                   <Select disabled={disabled} value={s.sessionType} onChange={(e) => setSession(i, 'sessionType', e.target.value)}>
                     <option value="P">Practice</option><option value="Q">Qualifying</option><option value="R">Race</option>
@@ -118,7 +119,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
         </div>
       </Card>
 
-      <Card title="Event rules (eventRules.json)">
+      <Card title="Event rules" subtitle="eventRules.json">
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Qualify standing type"><Input disabled={disabled} type="number" value={R.qualifyStandingType ?? 1} onChange={(e) => set('eventRules.qualifyStandingType', +e.target.value)} /></Field>
           <Field label="Pit window length (sec)" hint="-1 = none"><Input disabled={disabled} type="number" value={R.pitWindowLengthSec ?? -1} onChange={(e) => set('eventRules.pitWindowLengthSec', +e.target.value)} /></Field>
@@ -137,7 +138,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
         </div>
       </Card>
 
-      <Card title="Assists (assistRules.json)">
+      <Card title="Assists" subtitle="assistRules.json">
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Max stability control %"><Input disabled={disabled} type="number" min={0} max={100} value={A.stabilityControlLevelMax ?? 25} onChange={(e) => set('assistRules.stabilityControlLevelMax', +e.target.value)} /></Field>
         </div>
@@ -153,7 +154,7 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
         </div>
       </Card>
 
-      <Card title="Network (configuration.json)">
+      <Card title="Network" subtitle="configuration.json">
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Game port (TCP+UDP)" hint="Also updates published container port — re-provision after change">
             <Input disabled={disabled} type="number" value={ports} onChange={(e) => setPorts(+e.target.value)} />
@@ -163,7 +164,10 @@ export default function AccConfigForm({ server, disabled, onSave }: { server: Ga
       </Card>
 
       {!disabled && (
-        <Button onClick={() => onSave(cfg, { game: ports })}>Save configuration</Button>
+        <div className="sticky bottom-0 -mx-1 px-1 py-3 bg-background/85 backdrop-blur border-t border-border flex items-center gap-3">
+          <Button onClick={() => onSave(cfg, { game: ports })}>Save configuration</Button>
+          {dirty && <span className="text-xs text-warning">Unsaved changes</span>}
+        </div>
       )}
     </div>
   );

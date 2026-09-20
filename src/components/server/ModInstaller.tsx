@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, GameServer, ContentItem, CmContent } from '../../api';
-import { Card, Button, Select, Field, Input, Check } from '../ui';
+import { Card, Button, Select, Field, Input, Check, useToast } from '../ui';
 import { Upload, Package, Trash2, Download, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 // Uploads mod zips straight into this server's content folders and lists
@@ -14,7 +14,7 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
   const [name, setName] = useState('');
   const [publicDl, setPublicDl] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+  const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
@@ -27,8 +27,8 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
 
   const upload = async () => {
     const f = fileRef.current?.files?.[0];
-    if (!f) return setErr('Choose a .zip file first');
-    setBusy(true); setErr('');
+    if (!f) return toast.error('Choose a .zip file first');
+    setBusy(true);
     try {
       const fd = new FormData();
       fd.append('file', f);
@@ -37,13 +37,14 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
       fd.append('serverId', server.id);
       fd.append('publicDownload', String(publicDl));
       const { data } = await api.post('/content', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (data.installedError) setErr(`Uploaded but extraction failed: ${data.installedError}`);
+      if (data.installedError) toast.error(`Uploaded but extraction failed: ${data.installedError}`);
+      else toast.success('Uploaded & installed');
       if (fileRef.current) fileRef.current.value = '';
       setName('');
       await load();
       onChanged();
     } catch (e: any) {
-      setErr(e.message);
+      toast.error(e.message);
     }
     setBusy(false);
   };
@@ -121,16 +122,15 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
           <Button onClick={upload} disabled={busy}><Upload size={13} className="inline mr-1" />{busy ? 'Uploading…' : 'Upload & install'}</Button>
         </div>
         <div className="mt-3">
-          <Check label="Offer on public download page" checked={publicDl} onChange={setPublicDl} hint="Players can grab this mod from /public" />
+          <Check label="Offer on public download page" checked={publicDl} onChange={setPublicDl} hint="Players can grab this mod from the public page" />
         </div>
-        {err && <div className="text-sm text-red-400 mt-2">{err}</div>}
       </Card>
 
       <Card title="Library">
         {items.length === 0 && <div className="text-sm text-muted">No mods uploaded yet.</div>}
         <div className="space-y-1">
           {items.map((it) => (
-            <div key={it.id} className="flex items-center gap-3 bg-background border border-border rounded px-3 py-2 text-sm">
+            <div key={it.id} className="flex items-center gap-3 bg-card-2 border border-border rounded-lg px-3 py-2.5 text-sm">
               <Package size={14} className="text-muted shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="truncate">{it.name}</div>
