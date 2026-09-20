@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate, Link, NavLink, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import { clsx } from 'clsx';
 import { Gauge, Server, Package, Users, Settings as SettingsIcon, LogOut, Globe, Activity } from 'lucide-react';
@@ -37,12 +37,12 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className="text-xs text-muted mt-0.5">Assetto Server Manager</div>
         </div>
         <nav className="p-2 space-y-1 flex-1">
-          <NavLink to="/" end className={linkCls}><Activity size={16} /> Dashboard</NavLink>
-          <NavLink to="/servers/new" className={linkCls}><Server size={16} /> New Server</NavLink>
-          <NavLink to="/content" className={linkCls}><Package size={16} /> Content</NavLink>
-          {user?.role === 'admin' && <NavLink to="/accounts" className={linkCls}><Users size={16} /> Accounts</NavLink>}
-          <NavLink to="/settings" className={linkCls}><SettingsIcon size={16} /> Settings</NavLink>
-          <Link to="/public" target="_blank" className="flex items-center gap-2 px-3 py-2 rounded text-sm text-muted hover:text-foreground"><Globe size={16} /> Public Page</Link>
+          <NavLink to="/admin" end className={linkCls}><Activity size={16} /> Dashboard</NavLink>
+          <NavLink to="/admin/servers/new" className={linkCls}><Server size={16} /> New Server</NavLink>
+          <NavLink to="/admin/content" className={linkCls}><Package size={16} /> Content</NavLink>
+          {user?.role === 'admin' && <NavLink to="/admin/accounts" className={linkCls}><Users size={16} /> Accounts</NavLink>}
+          <NavLink to="/admin/settings" className={linkCls}><SettingsIcon size={16} /> Settings</NavLink>
+          <Link to="/" target="_blank" className="flex items-center gap-2 px-3 py-2 rounded text-sm text-muted hover:text-foreground"><Globe size={16} /> Public Page</Link>
         </nav>
         <div className="p-3 border-t border-border">
           <div className="text-sm">{user?.display_name || user?.username}</div>
@@ -61,19 +61,43 @@ function AuthedApp() {
   const { setupRequired, user, loading } = useAuth();
   return (
     <Routes>
-      <Route path="/setup" element={setupRequired ? <SetupPage /> : <Navigate to="/" replace />} />
-      <Route path="/login" element={!setupRequired && !user && !loading ? <LoginPage /> : <Navigate to="/" replace />} />
-      <Route path="/public" element={<PublicPage />} />
-      <Route path="/public/live/:serverId" element={<LivePage />} />
-      <Route path="/" element={<Protected><Layout><DashboardPage /></Layout></Protected>} />
-      <Route path="/servers/new" element={<Protected><Layout><ServerNewPage /></Layout></Protected>} />
-      <Route path="/servers/:id" element={<Protected><Layout><ServerDetailPage /></Layout></Protected>} />
-      <Route path="/content" element={<Protected><Layout><ContentPage /></Layout></Protected>} />
-      <Route path="/accounts" element={<Protected><Layout><AccountsPage /></Layout></Protected>} />
-      <Route path="/settings" element={<Protected><Layout><SettingsPage /></Layout></Protected>} />
+      {/* Public site */}
+      <Route path="/" element={<PublicPage />} />
+      <Route path="/live/:serverId" element={<LivePage />} />
+
+      {/* Auth */}
+      <Route path="/setup" element={setupRequired ? <SetupPage /> : <Navigate to="/admin" replace />} />
+      <Route path="/login" element={!setupRequired && !user && !loading ? <LoginPage /> : <Navigate to="/admin" replace />} />
+
+      {/* Staff area */}
+      <Route path="/admin" element={<Protected><Layout><DashboardPage /></Layout></Protected>} />
+      <Route path="/admin/servers/new" element={<Protected><Layout><ServerNewPage /></Layout></Protected>} />
+      <Route path="/admin/servers/:id" element={<Protected><Layout><ServerDetailPage /></Layout></Protected>} />
+      <Route path="/admin/content" element={<Protected><Layout><ContentPage /></Layout></Protected>} />
+      <Route path="/admin/accounts" element={<Protected><Layout><AccountsPage /></Layout></Protected>} />
+      <Route path="/admin/settings" element={<Protected><Layout><SettingsPage /></Layout></Protected>} />
+
+      {/* Legacy redirects */}
+      <Route path="/public" element={<Navigate to="/" replace />} />
+      <Route path="/public/live/:serverId" element={<LegacyLiveRedirect />} />
+      <Route path="/servers/new" element={<Navigate to="/admin/servers/new" replace />} />
+      <Route path="/servers/:id" element={<LegacyServerRedirect />} />
+      <Route path="/content" element={<Navigate to="/admin/content" replace />} />
+      <Route path="/accounts" element={<Navigate to="/admin/accounts" replace />} />
+      <Route path="/settings" element={<Navigate to="/admin/settings" replace />} />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+function LegacyLiveRedirect() {
+  const { serverId } = useParams();
+  return <Navigate to={`/live/${serverId}`} replace />;
+}
+function LegacyServerRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/servers/${id}`} replace />;
 }
 
 export default function App() {

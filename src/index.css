@@ -13,3 +13,10 @@ body {
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #22303f; border-radius: 4px; }
+
+.hero-band {
+  background:
+    radial-gradient(ellipse 80% 120% at 70% -20%, rgba(232, 52, 78, 0.12), transparent 60%),
+    repeating-linear-gradient(115deg, transparent 0 26px, rgba(255, 255, 255, 0.022) 26px 28px),
+    #0b0f14;
+}

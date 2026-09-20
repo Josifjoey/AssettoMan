@@ -50,7 +50,7 @@ export default function ServerNewPage() {
         runtime: runtime || 'local',
         steam: (type === 'acc' || type === 'assettoserver') ? undefined : { username: steamUser, password: steamPass },
       });
-      nav(`/servers/${data.server.id}`);
+      nav(`/admin/servers/${data.server.id}`);
     } catch (e: any) {
       setErr(e.message);
     } finally {

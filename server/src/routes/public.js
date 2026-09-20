@@ -115,7 +115,7 @@ router.get('/servers', async (req, res) => {
       }
       s.httpPort = ports.http || null;
       s.liveAvailable = isLive(row.id);
-      s.liveUrl = `/public/live/${row.id}`;
+      s.liveUrl = `/live/${row.id}`;
       if (gameHost) {
         s.joinUrl = `acmanager://race/online/join?ip=${encodeURIComponent(gameHost)}&httpPort=${ports.http || ''}`;
       }

@@ -54,7 +54,7 @@ export default function DashboardPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold">Dashboard</h1>
-        <Link to="/servers/new"><Button><Plus size={14} className="inline mr-1" />New server</Button></Link>
+        <Link to="/admin/servers/new"><Button><Plus size={14} className="inline mr-1" />New server</Button></Link>
       </div>
 
       {docker === false && (
@@ -67,7 +67,7 @@ export default function DashboardPage() {
       {servers.length === 0 ? (
         <Card className="text-center py-12">
           <p className="text-muted mb-4">No servers yet. Create your first Assetto server.</p>
-          <Link to="/servers/new"><Button>Create a server</Button></Link>
+          <Link to="/admin/servers/new"><Button>Create a server</Button></Link>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -75,7 +75,7 @@ export default function DashboardPage() {
             <Card key={s.id} className="flex flex-col">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <Link to={`/servers/${s.id}`} className="font-semibold hover:text-primary">{s.name}</Link>
+                  <Link to={`/admin/servers/${s.id}`} className="font-semibold hover:text-primary">{s.name}</Link>
                   <div className="text-xs text-muted">{TYPE_LABEL[s.type]}</div>
                 </div>
                 <StateBadge s={s} />
@@ -102,7 +102,7 @@ export default function DashboardPage() {
                 ) : (
                   <Button variant="success" onClick={() => act(s.id, 'start')} disabled={!!busyId || s.live?.state === 'not_provisioned' || s.live?.state === 'missing'}><Play size={13} className="inline mr-1" />Start</Button>
                 )}
-                <Link to={`/servers/${s.id}`} className="ml-auto"><Button variant="outline">Manage</Button></Link>
+                <Link to={`/admin/servers/${s.id}`} className="ml-auto"><Button variant="outline">Manage</Button></Link>
               </div>
             </Card>
           ))}

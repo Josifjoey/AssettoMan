@@ -39,7 +39,7 @@ export default function LoginPage() {
             <Button type="submit" disabled={busy} className="w-full">{busy ? 'Signing in…' : 'Sign in'}</Button>
           </form>
         </Card>
-        <div className="text-center mt-4"><Link to="/public" className="text-xs text-muted hover:text-foreground">View public server page →</Link></div>
+        <div className="text-center mt-4"><Link to="/" className="text-xs text-muted hover:text-foreground">View public server page →</Link></div>
       </div>
     </div>
   );

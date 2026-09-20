@@ -60,7 +60,7 @@ export default function ServerDetailPage() {
     setBusy(true);
     try {
       await api.delete(`/servers/${id}`);
-      nav('/');
+      nav('/admin');
     } catch (e: any) { setErr(e.message); setBusy(false); }
   };
 
@@ -86,7 +86,7 @@ export default function ServerDetailPage() {
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <Link to="/" className="text-xs text-muted hover:text-foreground">← Dashboard</Link>
+          <Link to="/admin" className="text-xs text-muted hover:text-foreground">← Dashboard</Link>
           <h1 className="text-xl font-bold flex items-center gap-3">
             {server.name}
             {running ? <Badge tone="green">running</Badge> : <Badge tone="red">{server.live?.state || 'stopped'}</Badge>}

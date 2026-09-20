@@ -68,7 +68,7 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
       {cm && (
         <Card title="Content Manager download links">
           <p className="text-xs text-muted mb-2">
-            Cars/track in the current config and whether players get a download link (cm_content/content.json). Add links on the <Link to="/content" className="text-primary hover:underline">Content page</Link>.<br />
+            Cars/track in the current config and whether players get a download link (cm_content/content.json). Add links on the <Link to="/admin/content" className="text-primary hover:underline">Content page</Link>.<br />
             {server.type === 'assettoserver'
               ? 'content.json is served to Content Manager automatically by AssettoServer (EnableServerDetails).'
               : "content.json is generated for Content Manager. Vanilla acServer doesn't expose it — it is used when running via AssettoServer or CM's server wrapper. Public page download links always work."}
@@ -80,7 +80,7 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
                 <div key={c} className="flex items-center gap-2">
                   {linked ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> : <AlertTriangle size={14} className="text-amber-400 shrink-0" />}
                   <span className="font-mono text-xs">{c}</span>
-                  {!linked && <Link to="/content" className="text-xs text-primary hover:underline">add link</Link>}
+                  {!linked && <Link to="/admin/content" className="text-xs text-primary hover:underline">add link</Link>}
                 </div>
               );
             })}
@@ -88,7 +88,7 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
               <div className="flex items-center gap-2">
                 {cm.track?.url ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> : <AlertTriangle size={14} className="text-amber-400 shrink-0" />}
                 <span className="font-mono text-xs">{cfgTrack} (track)</span>
-                {!cm.track?.url && <Link to="/content" className="text-xs text-primary hover:underline">add link</Link>}
+                {!cm.track?.url && <Link to="/admin/content" className="text-xs text-primary hover:underline">add link</Link>}
               </div>
             )}
             {!cfgCars.length && !cfgTrack && <div className="text-muted text-xs">No cars/track configured yet.</div>}
