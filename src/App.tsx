@@ -13,6 +13,7 @@ import AccountsPage from './pages/Accounts';
 import ContentPage from './pages/Content';
 import SettingsPage from './pages/Settings';
 import PublicPage from './pages/Public';
+import LivePage from './pages/Live';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, setupRequired, loading } = useAuth();
@@ -63,6 +64,7 @@ function AuthedApp() {
       <Route path="/setup" element={setupRequired ? <SetupPage /> : <Navigate to="/" replace />} />
       <Route path="/login" element={!setupRequired && !user && !loading ? <LoginPage /> : <Navigate to="/" replace />} />
       <Route path="/public" element={<PublicPage />} />
+      <Route path="/public/live/:serverId" element={<LivePage />} />
       <Route path="/" element={<Protected><Layout><DashboardPage /></Layout></Protected>} />
       <Route path="/servers/new" element={<Protected><Layout><ServerNewPage /></Layout></Protected>} />
       <Route path="/servers/:id" element={<Protected><Layout><ServerDetailPage /></Layout></Protected>} />

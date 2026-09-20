@@ -9,6 +9,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import { getDb } from './db.js';
+import { resumeTelemetry } from './telemetry.js';
 import { SERVERS_DIR, MODS_DIR, UPLOADS_DIR } from './paths.js';
 import authRoutes from './routes/auth.js';
 import accountRoutes from './routes/accounts.js';
@@ -66,6 +67,7 @@ if (publicDir) {
 
 for (const d of [SERVERS_DIR, MODS_DIR, UPLOADS_DIR]) fs.mkdirSync(d, { recursive: true });
 await getDb();
+resumeTelemetry();
 
 app.listen(PORT, () => {
   console.log(`[assettoman] listening on :${PORT}`);

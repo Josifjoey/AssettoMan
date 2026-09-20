@@ -9,7 +9,7 @@ import { DATA_DIR, HOST_DATA_DIR } from '../paths.js';
 const router = Router();
 router.use(requireAuth);
 
-const PUBLIC_KEYS = ['public_site_name', 'public_about', 'public_rules', 'public_discord_url', 'public_join_info'];
+const PUBLIC_KEYS = ['public_site_name', 'public_about', 'public_rules', 'public_discord_url', 'public_join_info', 'public_base_url', 'public_game_host'];
 
 // GET /api/system/health — docker connectivity + path mapping sanity
 router.get('/health', async (req, res) => {

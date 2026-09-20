@@ -97,6 +97,17 @@ async function migrate(db) {
   if (!cols.some((c) => c.name === 'runtime')) {
     await db.exec("ALTER TABLE servers ADD COLUMN runtime TEXT NOT NULL DEFAULT 'docker'");
   }
+
+  const ccols = await db.all('PRAGMA table_info(content_items)');
+  const addContentCol = async (name, def) => {
+    if (!ccols.some((c) => c.name === name)) {
+      await db.exec(`ALTER TABLE content_items ADD COLUMN ${name} ${def}`);
+    }
+  };
+  await addContentCol('source_type', "TEXT NOT NULL DEFAULT 'hosted'");
+  await addContentCol('external_url', 'TEXT');
+  await addContentCol('content_id', 'TEXT');
+  await addContentCol('description', 'TEXT');
 }
 
 export async function getSetting(key, fallback = null) {

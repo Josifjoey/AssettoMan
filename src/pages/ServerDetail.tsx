@@ -9,6 +9,7 @@ import EntriesEditor from '../components/server/EntriesEditor';
 import FileBrowser from '../components/server/FileBrowser';
 import LogViewer from '../components/server/LogViewer';
 import ModInstaller from '../components/server/ModInstaller';
+import LiveView, { LiveSnapshot, TrackMap } from '../components/live/LiveView';
 
 export default function ServerDetailPage() {
   const { id } = useParams();
@@ -73,6 +74,7 @@ export default function ServerDetailPage() {
     { id: 'overview', label: 'Overview' },
     { id: 'config', label: 'Configuration' },
     { id: 'entries', label: server.type === 'acc' ? 'Entry List & BoP' : 'Entry List' },
+    ...(server.type !== 'acc' ? [{ id: 'live', label: 'Live' }] : []),
     ...(server.type === 'ac_modded' ? [{ id: 'content', label: 'Mod Content' }] : []),
     { id: 'files', label: 'Files' },
     { id: 'logs', label: 'Logs' },
@@ -166,6 +168,8 @@ export default function ServerDetailPage() {
         <EntriesEditor server={server} disabled={running || busy} onSave={saveConfig} />
       )}
 
+      {tab === 'live' && <LiveTab server={server} />}
+
       {tab === 'content' && <ModInstaller server={server} onChanged={load} />}
 
       {tab === 'files' && <FileBrowser serverId={server.id} />}
@@ -185,6 +189,64 @@ export default function ServerDetailPage() {
           )}
         </Card>
       )}
+    </div>
+  );
+}
+
+function LiveTab({ server }: { server: GameServer }) {
+  const [snap, setSnap] = useState<LiveSnapshot>({ active: false });
+  const [trackMap, setTrackMap] = useState<TrackMap | null>(null);
+  const [chat, setChat] = useState('');
+  const [cmd, setCmd] = useState('');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    let dead = false;
+    const load = async () => {
+      try {
+        const { data } = await api.get(`/servers/${server.id}/telemetry`);
+        if (!dead) setSnap(data);
+      } catch { /* keep polling */ }
+    };
+    load();
+    const t = setInterval(load, 2000);
+    api.get(`/public/track-map/${server.id}`).then((r) => { if (!dead) setTrackMap(r.data); }).catch(() => {});
+    return () => { dead = true; clearInterval(t); };
+  }, [server.id]);
+
+  const act = async (path: string, body?: any) => {
+    try {
+      await api.post(`/servers/${server.id}/telemetry/${path}`, body || {});
+      setMsg('sent'); setTimeout(() => setMsg(''), 1500);
+    } catch (e: any) { setMsg(e.message); }
+  };
+
+  const session = snap.session;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="text-sm text-muted">
+          {snap.active
+            ? <>{session ? `${session.name} · ${session.typeName}` : 'listening'}{session?.track ? ` — ${session.track}${session.trackConfig ? `/${session.trackConfig}` : ''}` : ''}</>
+            : 'Telemetry not active — start the server with live telemetry enabled.'}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Input className="w-56" placeholder="Broadcast chat…" value={chat} onChange={(e) => setChat(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && chat) { act('chat', { message: chat }); setChat(''); } }} />
+          <Button variant="ghost" disabled={!chat} onClick={() => { act('chat', { message: chat }); setChat(''); }}>Send</Button>
+          <Button variant="ghost" onClick={() => act('next-session')}>Next session</Button>
+          <Button variant="ghost" onClick={() => act('restart-session')}>Restart session</Button>
+        </div>
+      </div>
+      {msg && <div className="text-xs text-muted">{msg}</div>}
+      <div className="h-[32rem]">
+        <LiveView snap={snap} trackMap={trackMap} onKick={(carId) => { if (confirm(`Kick car ${carId}?`)) act('kick', { carId }); }} />
+      </div>
+      <div className="flex items-center gap-2">
+        <Input className="w-72" placeholder="Admin command (e.g. /ballast 3 20)" value={cmd} onChange={(e) => setCmd(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && cmd) { act('admin', { command: cmd }); setCmd(''); } }} />
+        <Button variant="outline" disabled={!cmd} onClick={() => { act('admin', { command: cmd }); setCmd(''); }}>Run admin command</Button>
+      </div>
     </div>
   );
 }

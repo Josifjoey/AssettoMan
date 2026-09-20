@@ -37,7 +37,7 @@ export interface GameServer {
   container_id?: string;
   exePath?: string;
   exePresent?: boolean;
-  ports: { game: number; http?: number };
+  ports: { game: number; http?: number; plugin?: number; pluginListen?: number };
   config: any;
   data_dir: string;
   is_public: boolean;
@@ -58,5 +58,31 @@ export interface ContentItem {
   size?: number;
   enabled: number;
   is_public_download: number;
+  source_type?: 'hosted' | 'external';
+  external_url?: string;
+  content_id?: string;
+  description?: string;
+  preview_image?: string;
   created_at: string;
 }
+
+export interface LinkPreview {
+  title?: string | null;
+  image?: string | null;
+  description?: string | null;
+  siteName?: string | null;
+  url: string;
+  kind?: 'car' | 'track';
+}
+
+export interface CmContent {
+  cars: Record<string, { url: string; version?: string }>;
+  track?: { url: string; version?: string };
+  missing: string[];
+}
+
+export const contentApi = {
+  preview: (url: string) => api.get<LinkPreview>('/content/preview', { params: { url } }),
+  link: (body: any) => api.post('/content/link', body),
+  cmContent: (serverId: string) => api.get<CmContent>(`/servers/${serverId}/cm-content`),
+};

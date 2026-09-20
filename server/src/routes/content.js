@@ -7,6 +7,15 @@ import yauzl from 'yauzl';
 import { getDb, audit } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { MODS_DIR, SERVERS_DIR } from '../paths.js';
+import { fetchLinkPreview } from '../linkPreview.js';
+import { regenerateCmContent } from '../cmContent.js';
+
+async function regen(serverId) {
+  try {
+    const db = await getDb();
+    await regenerateCmContent(db, serverId || null);
+  } catch { /* content.json regeneration is best-effort */ }
+}
 
 const router = Router();
 router.use(requireAuth);
@@ -84,10 +93,48 @@ router.get('/', async (req, res) => {
   res.json({ items: rows });
 });
 
+// GET /api/content/preview?url= — fetch link metadata for the "add link" form
+router.get('/preview', async (req, res) => {
+  const url = String(req.query.url || '');
+  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'http(s) URL required' });
+  try {
+    res.json(await fetchLinkPreview(url));
+  } catch (e) {
+    const msg = String(e.message || e);
+    res.status(/not allowed|URL/i.test(msg) ? 400 : 502).json({ error: msg });
+  }
+});
+
+// POST /api/content/link — register an externally-hosted mod (no file stored)
+router.post('/link', async (req, res) => {
+  const { kind, name, version, url, contentId, description, previewImage, serverId, publicDownload } = req.body || {};
+  if (!['car', 'track', 'mod'].includes(kind)) return res.status(400).json({ error: 'kind must be car|track|mod' });
+  if (!name) return res.status(400).json({ error: 'name required' });
+  if (!/^https?:\/\//i.test(url || '')) return res.status(400).json({ error: 'valid http(s) url required' });
+  if (serverId) {
+    const db0 = await getDb();
+    const server = await db0.get('SELECT id FROM servers WHERE id = ?', serverId);
+    if (!server) return res.status(404).json({ error: 'Server not found' });
+  }
+  const db = await getDb();
+  const id = crypto.randomUUID();
+  await db.run(
+    `INSERT INTO content_items (id, server_id, kind, name, version, filename, file_path, size, enabled, is_public_download, preview_image, source_type, external_url, content_id, description, created_at)
+     VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, 1, ?, ?, 'external', ?, ?, ?, ?)`,
+    id, serverId || null, kind, name, version || null,
+    publicDownload === false ? 0 : 1, previewImage || null, url, contentId || null, description || null,
+    new Date().toISOString()
+  );
+  await audit(req.user.id, req.user.username, 'mod_linked', name);
+  await regen(serverId || null);
+  const item = await db.get('SELECT * FROM content_items WHERE id = ?', id);
+  res.status(201).json({ item });
+});
+
 // POST /api/content — upload a zip (multipart: file, kind, name, version, serverId?, publicDownload?)
 router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'zip file required' });
-  const { kind = 'car', name, version, serverId } = req.body || {};
+  const { kind = 'car', name, version, serverId, contentId, description, previewImage } = req.body || {};
   if (!['car', 'track', 'mod'].includes(kind)) {
     fs.rmSync(req.file.path, { force: true });
     return res.status(400).json({ error: 'kind must be car|track|mod' });
@@ -116,13 +163,15 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 
   await db.run(
-    `INSERT INTO content_items (id, server_id, kind, name, version, filename, file_path, size, enabled, is_public_download, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    `INSERT INTO content_items (id, server_id, kind, name, version, filename, file_path, size, enabled, is_public_download, preview_image, content_id, description, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
     id, serverId || null, kind, name || req.file.originalname.replace(/\.zip$/i, ''),
     version || null, req.file.originalname, req.file.path, req.file.size,
-    req.body.publicDownload === 'true' ? 1 : 0, new Date().toISOString()
+    req.body.publicDownload === 'true' ? 1 : 0, previewImage || null,
+    contentId || null, description || null, new Date().toISOString()
   );
   await audit(req.user.id, req.user.username, 'mod_uploaded', name || req.file.originalname);
+  await regen(serverId || null);
   const item = await db.get('SELECT * FROM content_items WHERE id = ?', id);
   res.status(201).json({ item, installedError });
 });
@@ -133,6 +182,7 @@ router.post('/:id/install', async (req, res) => {
   const db = await getDb();
   const item = await db.get('SELECT * FROM content_items WHERE id = ?', req.params.id);
   if (!item) return res.status(404).json({ error: 'Mod not found' });
+  if (item.source_type === 'external') return res.status(400).json({ error: 'External link — nothing to install' });
   const server = await db.get('SELECT * FROM servers WHERE id = ?', serverId);
   if (!server) return res.status(404).json({ error: 'Server not found' });
   if (server.type === 'acc') return res.status(400).json({ error: 'ACC does not support mods' });
@@ -151,14 +201,19 @@ router.patch('/:id', async (req, res) => {
   const db = await getDb();
   const item = await db.get('SELECT * FROM content_items WHERE id = ?', req.params.id);
   if (!item) return res.status(404).json({ error: 'Mod not found' });
-  const { name, version, publicDownload, enabled } = req.body || {};
+  const { name, version, publicDownload, enabled, contentId, description, previewImage } = req.body || {};
   await db.run(
-    'UPDATE content_items SET name = COALESCE(?, name), version = COALESCE(?, version), is_public_download = COALESCE(?, is_public_download), enabled = COALESCE(?, enabled) WHERE id = ?',
+    `UPDATE content_items SET name = COALESCE(?, name), version = COALESCE(?, version),
+       is_public_download = COALESCE(?, is_public_download), enabled = COALESCE(?, enabled),
+       content_id = COALESCE(?, content_id), description = COALESCE(?, description),
+       preview_image = COALESCE(?, preview_image) WHERE id = ?`,
     name ?? null, version ?? null,
     publicDownload === undefined ? null : (publicDownload ? 1 : 0),
     enabled === undefined ? null : (enabled ? 1 : 0),
+    contentId ?? null, description ?? null, previewImage ?? null,
     item.id
   );
+  await regen(item.server_id || null);
   res.json({ ok: true });
 });
 
@@ -170,6 +225,7 @@ router.delete('/:id', async (req, res) => {
   await db.run('DELETE FROM content_items WHERE id = ?', item.id);
   if (item.file_path?.startsWith(MODS_DIR)) fs.rmSync(item.file_path, { force: true });
   await audit(req.user.id, req.user.username, 'mod_deleted', item.name);
+  await regen(item.server_id || null);
   res.json({ ok: true });
 });
 

@@ -46,6 +46,8 @@ export default function SettingsPage() {
           <Field label="Server rules" hint="Shown on the public page — one rule per line"><Textarea rows={6} value={settings.public_rules || ''} onChange={(e) => set('public_rules', e.target.value)} /></Field>
           <Field label="Discord invite URL"><Input value={settings.public_discord_url || ''} onChange={(e) => set('public_discord_url', e.target.value)} /></Field>
           <Field label="How to join" hint="e.g. connection info, password location"><Textarea rows={3} value={settings.public_join_info || ''} onChange={(e) => set('public_join_info', e.target.value)} /></Field>
+          <Field label="Public base URL" hint="e.g. https://assetto.eclipx.io — used to build download links in Content Manager's content.json"><Input value={settings.public_base_url || ''} onChange={(e) => set('public_base_url', e.target.value)} placeholder="https://assetto.eclipx.io" /></Field>
+          <Field label="Public game host" hint="IP/hostname players connect to, e.g. assetto.eclipx.io — enables the join button and host:port display"><Input value={settings.public_game_host || ''} onChange={(e) => set('public_game_host', e.target.value)} placeholder="assetto.eclipx.io" /></Field>
           <Button onClick={save}>Save public settings</Button>
           {msg && <span className="text-sm text-emerald-400 ml-3">{msg}</span>}
         </div>

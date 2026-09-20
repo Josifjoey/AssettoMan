@@ -9,7 +9,7 @@ function bool(v) {
   return v ? 1 : 0;
 }
 
-export function writeAcConfigs(dataDir, config) {
+export function writeAcConfigs(dataDir, config, opts = {}) {
   const cfgDir = path.join(dataDir, 'serverfiles', 'cfg');
   fs.mkdirSync(cfgDir, { recursive: true });
 
@@ -48,8 +48,16 @@ export function writeAcConfigs(dataDir, config) {
   lines.push(`FORCE_VIRTUAL_MIRROR=${bool(s.forceVirtualMirror)}`);
   if (s.legalTyres) lines.push(`LEGAL_TYRES=${s.legalTyres}`);
   lines.push(`MAX_BALLAST_KG=${s.maxBallastKg ?? 50}`);
-  if (s.udpPluginLocalPort) lines.push(`UDP_PLUGIN_LOCAL_PORT=${s.udpPluginLocalPort}`);
-  if (s.udpPluginAddress) lines.push(`UDP_PLUGIN_ADDRESS=${s.udpPluginAddress}`);
+  if (config.telemetry?.enabled !== false) {
+    // Managed telemetry plugin — overrides the manual UDP plugin fields.
+    lines.push(`UDP_PLUGIN_LOCAL_PORT=${config.ports?.plugin ?? 9700}`);
+    if (opts.pluginAddress) {
+      lines.push(`UDP_PLUGIN_ADDRESS=${opts.pluginAddress}:${config.ports?.pluginListen ?? 9701}`);
+    }
+  } else {
+    if (s.udpPluginLocalPort) lines.push(`UDP_PLUGIN_LOCAL_PORT=${s.udpPluginLocalPort}`);
+    if (s.udpPluginAddress) lines.push(`UDP_PLUGIN_ADDRESS=${s.udpPluginAddress}`);
+  }
   if (s.authPluginAddress) lines.push(`AUTH_PLUGIN_ADDRESS=${s.authPluginAddress}`);
   lines.push(`START_RULE=${s.startRule ?? 0}`);
   lines.push(`RACE_GAS_PENALTY_DISABLED=${bool(s.raceGasPenaltyDisabled)}`);

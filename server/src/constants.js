@@ -92,8 +92,8 @@ export const IMAGES = {
 };
 
 export const DEFAULT_PORTS = {
-  ac: { game: 9600, http: 8081 },
-  ac_modded: { game: 9610, http: 8091 },
+  ac: { game: 9600, http: 8081, plugin: 9700, pluginListen: 9701 },
+  ac_modded: { game: 9610, http: 8091, plugin: 9710, pluginListen: 9711 },
   acc: { game: 9201 },
 };
 
@@ -155,6 +155,7 @@ export function defaultAcConfig() {
     ],
     entries: [],
     booked: [],
+    telemetry: { enabled: true, forwardTo: '' },
   };
 }
 

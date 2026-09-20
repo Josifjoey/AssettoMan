@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { getDb, audit } from '../db.js';
+import { getDb, audit, getSetting } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { SERVERS_DIR } from '../paths.js';
 import { DEFAULT_PORTS, defaultAcConfig, defaultAccConfig, ACC_TRACKS, ACC_CARS, ACC_CAR_GROUPS } from '../constants.js';
@@ -14,6 +14,8 @@ import { localExePath, localExePresent, localStart, localStop, localRestart, loc
 import { writeAcConfigs, listInstalledContent } from '../configAc.js';
 import { writeAccConfigs, readAccConfigs, accServerExePresent } from '../configAcc.js';
 import { getServerStatus, invalidateStatus } from '../status.js';
+import { writeCmContent, cmContentStatus } from '../cmContent.js';
+import { startTelemetry, stopTelemetry, getSnapshot, telemetrySend, managerAddressFor } from '../telemetry.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -21,9 +23,15 @@ router.use(requireAuth);
 const VALID_TYPES = ['ac', 'ac_modded', 'acc'];
 
 function rowToServer(row) {
+  const ports = JSON.parse(row.ports || '{}');
+  // Older rows predate the telemetry ports — derive them from the game port.
+  if (row.type !== 'acc' && !ports.plugin) {
+    ports.plugin = (ports.game || 9600) + 100;
+    ports.pluginListen = (ports.game || 9600) + 101;
+  }
   return {
     ...row,
-    ports: JSON.parse(row.ports || '{}'),
+    ports,
     config: JSON.parse(row.config || '{}'),
     is_public: !!row.is_public,
   };
@@ -33,7 +41,18 @@ function writeConfigsFor(server) {
   if (server.type === 'acc') {
     writeAccConfigs(server.data_dir, { ...server.config, ports: server.ports });
   } else {
-    writeAcConfigs(server.data_dir, { ...server.config, ports: server.ports });
+    writeAcConfigs(server.data_dir, { ...server.config, ports: server.ports }, { pluginAddress: managerAddressFor(server) });
+  }
+}
+
+// Writes game configs + CM content.json. Async side effects are best-effort.
+async function writeAllConfigs(server) {
+  writeConfigsFor(server);
+  if (server.type !== 'acc') {
+    try {
+      const baseUrl = String(await getSetting('public_base_url', '')).replace(/\/+$/, '');
+      await writeCmContent(server, baseUrl);
+    } catch { /* cm_content is best-effort */ }
   }
 }
 
@@ -86,7 +105,7 @@ router.post('/', async (req, res) => {
     data_dir: path.join(SERVERS_DIR, id),
   };
   fs.mkdirSync(server.data_dir, { recursive: true });
-  writeConfigsFor(server);
+  await writeAllConfigs(server);
 
   const now = new Date().toISOString();
   const status = finalRuntime === 'local' ? 'provisioned' : 'created';
@@ -150,7 +169,7 @@ router.put('/:id/config', async (req, res) => {
   const mergedPorts = { ...server.ports, ...(ports || {}) };
 
   const updated = { ...server, config: merged, ports: mergedPorts };
-  writeConfigsFor(updated);
+  await writeAllConfigs(updated);
 
   const db = await getDb();
   await db.run(
@@ -180,6 +199,7 @@ router.post('/:id/provision', async (req, res) => {
 
   if (!(await dockerAvailable())) return res.status(503).json({ error: 'Docker socket not reachable — mount /var/run/docker.sock' });
 
+  await writeAllConfigs(server);
   const db = await getDb();
   try {
     const existing = await inspectContainer(server.container_id || server.container_name);
@@ -203,6 +223,11 @@ async function lifecycle(req, res, localFn, dockerFn, actionName) {
   if (!server) return;
   const db = await getDb();
   try {
+    // Rewrite configs right before start/restart (telemetry manager address,
+    // cm_content links can change between runs).
+    if ((actionName === 'start' || actionName === 'restart') && server.type !== 'acc') {
+      await writeAllConfigs(server);
+    }
     if (server.runtime === 'local') {
       await localFn(server);
     } else {
@@ -211,6 +236,15 @@ async function lifecycle(req, res, localFn, dockerFn, actionName) {
       await dockerFn(ref);
     }
     invalidateStatus(server.id);
+    if (server.type !== 'acc') {
+      try {
+        if (actionName === 'start') await startTelemetry(server);
+        else if (actionName === 'stop' || actionName === 'restart') {
+          stopTelemetry(server.id);
+          if (actionName === 'restart') await startTelemetry(server);
+        }
+      } catch { /* telemetry is best-effort */ }
+    }
     await audit(req.user.id, req.user.username, `server_${actionName}`, server.name);
     res.json({ ok: true });
   } catch (err) {
@@ -248,6 +282,44 @@ router.get('/:id/logs', async (req, res) => {
   }
 });
 
+// ---- telemetry (AC only) ----
+
+// GET /api/servers/:id/telemetry — admin snapshot (keeps driverGuid)
+router.get('/:id/telemetry', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  if (server.type === 'acc') return res.status(400).json({ error: 'ACC has no plugin telemetry' });
+  res.json(getSnapshot(server.id));
+});
+
+function telemetryAction(kind, payload, auditAction, detail) {
+  return async (req, res) => {
+    const server = await loadServer(req, res);
+    if (!server) return;
+    if (server.type === 'acc') return res.status(400).json({ error: 'ACC has no plugin telemetry' });
+    const p = typeof payload === 'function' ? payload(req) : payload;
+    if (!telemetrySend(server.id, kind, p)) {
+      return res.status(409).json({ error: 'Telemetry not active — is the server running with telemetry enabled?' });
+    }
+    await audit(req.user.id, req.user.username, auditAction, typeof detail === 'function' ? detail(req, server) : `${server.name}`);
+    res.json({ ok: true });
+  };
+}
+
+router.post('/:id/telemetry/chat', telemetryAction('chat', (req) => ({ message: String(req.body?.message || '').slice(0, 200) }), 'telemetry_chat', (req, s) => `${s.name}: ${String(req.body?.message || '').slice(0, 80)}`));
+router.post('/:id/telemetry/kick', telemetryAction('kick', (req) => ({ carId: +req.body?.carId }), 'telemetry_kick', (req, s) => `${s.name}: car ${req.body?.carId}`));
+router.post('/:id/telemetry/next-session', telemetryAction('nextSession', {}, 'telemetry_next_session'));
+router.post('/:id/telemetry/restart-session', telemetryAction('restartSession', {}, 'telemetry_restart_session'));
+router.post('/:id/telemetry/admin', telemetryAction('admin', (req) => ({ command: String(req.body?.command || '').slice(0, 200) }), 'telemetry_admin', (req, s) => `${s.name}: ${String(req.body?.command || '').slice(0, 80)}`));
+
+// GET /api/servers/:id/cm-content — generated CM content.json + missing links
+router.get('/:id/cm-content', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  if (server.type === 'acc') return res.status(400).json({ error: 'ACC servers have no mod content' });
+  res.json(await cmContentStatus(server));
+});
+
 // DELETE /api/servers/:id?keepFiles=1
 router.delete('/:id', async (req, res) => {
   const server = await loadServer(req, res);
@@ -261,6 +333,7 @@ router.delete('/:id', async (req, res) => {
     } catch { /* best effort */ }
   }
 
+  stopTelemetry(server.id);
   const db = await getDb();
   await db.run('DELETE FROM servers WHERE id = ?', server.id);
   await audit(req.user.id, req.user.username, 'server_deleted', server.name);

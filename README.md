@@ -65,7 +65,9 @@ npm install && cd server && npm install && cd ..
 npm run start:all   # vite :5176 (proxy → :3010) + server :3010
 ```
 
-Env vars: `PORT`, `DATA_DIR`, `HOST_DATA_DIR`, `DOCKER_SOCKET`, `JWT_SECRET`, `GAME_HOST`, `COOKIE_SECURE`, `FRONTEND_URL`.
+Env vars: `PORT`, `DATA_DIR`, `HOST_DATA_DIR`, `DOCKER_SOCKET`, `JWT_SECRET`, `GAME_HOST`, `COOKIE_SECURE`, `FRONTEND_URL`, `PLUGIN_ADDRESS`.
+
+- `PLUGIN_ADDRESS` (optional): overrides the address AC servers send UDP telemetry to. By default the manager auto-detects its own bridge IP — in Docker mode the sibling game container sends UDP packets straight to the manager's bridge IP, so no extra published port is needed.
 
 ## Notes
 
@@ -73,3 +75,5 @@ Env vars: `PORT`, `DATA_DIR`, `HOST_DATA_DIR`, `DOCKER_SOCKET`, `JWT_SECRET`, `G
 - AC needs a Steam account (any account, no game ownership required) with **Steam Guard disabled** for SteamCMD.
 - ACC needs `accServer.exe` copied from the Steam "Assetto Corsa Competizione Dedicated Server" tool — put it in `<data>/servers/<id>/acc/`.
 - Mod zips are extracted with layout detection: `content/cars/…`, `cars/…`, or bare folders all work; zip-slip paths are dropped.
+- The manager writes `serverfiles/cfg/cm_content/content.json` (download links for cars/track) for Content Manager. Vanilla acServer does not serve that file to CM — it is picked up when the server runs via AssettoServer or CM's server wrapper. The public page's download links work regardless.
+- AC live telemetry uses the acServer UDP plugin protocol (`UDP_PLUGIN_LOCAL_PORT` / `UDP_PLUGIN_ADDRESS`, auto-written at start). `PLUGIN_ADDRESS` overrides the address servers send events to.

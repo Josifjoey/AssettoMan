@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api, GameServer, ContentItem } from '../../api';
+import { Link } from 'react-router-dom';
+import { api, GameServer, ContentItem, CmContent } from '../../api';
 import { Card, Button, Select, Field, Input, Check } from '../ui';
-import { Upload, Package, Trash2, Download } from 'lucide-react';
+import { Upload, Package, Trash2, Download, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 // Uploads mod zips straight into this server's content folders and lists
 // what's installed vs. what's in the library.
 
 export default function ModInstaller({ server, onChanged }: { server: GameServer; onChanged: () => void }) {
   const [items, setItems] = useState<ContentItem[]>([]);
+  const [cm, setCm] = useState<CmContent | null>(null);
   const [kind, setKind] = useState('car');
   const [name, setName] = useState('');
   const [publicDl, setPublicDl] = useState(true);
@@ -18,6 +20,8 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
   const load = async () => {
     const { data } = await api.get('/content', { params: { serverId: server.id } });
     setItems(data.items);
+    const cmRes = await api.get(`/servers/${server.id}/cm-content`).catch(() => null);
+    if (cmRes) setCm(cmRes.data);
   };
   useEffect(() => { load(); }, [server.id]);
 
@@ -56,8 +60,39 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
 
   const installed = server.installed || { cars: [], tracks: [] };
 
+  const cfgCars = String(server.config?.server?.cars || '').split(';').filter(Boolean);
+  const cfgTrack = server.config?.server?.track || null;
+
   return (
     <div className="space-y-4">
+      {cm && (
+        <Card title="Content Manager download links">
+          <p className="text-xs text-muted mb-2">
+            Cars/track in the current config and whether players get a download link (cm_content/content.json). Add links on the <Link to="/content" className="text-primary hover:underline">Content page</Link>.<br />
+            content.json is generated for Content Manager. Vanilla acServer doesn't expose it — it is used when running via AssettoServer or CM's server wrapper. Public page download links always work.
+          </p>
+          <div className="space-y-1 text-sm">
+            {cfgCars.map((c) => {
+              const linked = !!cm.cars?.[c]?.url;
+              return (
+                <div key={c} className="flex items-center gap-2">
+                  {linked ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> : <AlertTriangle size={14} className="text-amber-400 shrink-0" />}
+                  <span className="font-mono text-xs">{c}</span>
+                  {!linked && <Link to="/content" className="text-xs text-primary hover:underline">add link</Link>}
+                </div>
+              );
+            })}
+            {cfgTrack && (
+              <div className="flex items-center gap-2">
+                {cm.track?.url ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> : <AlertTriangle size={14} className="text-amber-400 shrink-0" />}
+                <span className="font-mono text-xs">{cfgTrack} (track)</span>
+                {!cm.track?.url && <Link to="/content" className="text-xs text-primary hover:underline">add link</Link>}
+              </div>
+            )}
+            {!cfgCars.length && !cfgTrack && <div className="text-muted text-xs">No cars/track configured yet.</div>}
+          </div>
+        </Card>
+      )}
       <div className="grid md:grid-cols-2 gap-4">
         <Card title={`Installed cars (${installed.cars.length})`}>
           <div className="max-h-48 overflow-auto text-xs font-mono space-y-0.5">

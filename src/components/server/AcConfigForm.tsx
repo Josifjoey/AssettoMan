@@ -14,7 +14,7 @@ function setPath(obj: any, path: string[], value: any) {
 const WEATHER_PRESETS = ['1_heavy_fog', '2_light_fog', '3_clear', '4_mid_clear', '5_light_clouds', '6_mid_clouds', '7_heavy_clouds'];
 
 export default function AcConfigForm({ server, disabled, onSave }: { server: GameServer; disabled: boolean; onSave: (config: any, ports?: any) => void }) {
-  const [cfg, setCfg] = useState<any>(server.config);
+  const [cfg, setCfg] = useState<any>(() => ({ telemetry: { enabled: true, forwardTo: '' }, ...server.config }));
   const [gamePort, setGamePort] = useState(server.ports.game);
   const [httpPort, setHttpPort] = useState(server.ports.http || 8081);
   const set = (path: string, value: any) => setCfg((c: any) => setPath(c, path.split('.'), value));
@@ -179,7 +179,19 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Game port (TCP+UDP)" hint="Re-provision after change"><Input disabled={disabled} type="number" value={gamePort} onChange={(e) => setGamePort(+e.target.value)} /></Field>
           <Field label="HTTP port" hint="Status API"><Input disabled={disabled} type="number" value={httpPort} onChange={(e) => setHttpPort(+e.target.value)} /></Field>
-          <Field label="UDP plugin local port" hint="0 = off"><Input disabled={disabled} type="number" value={S.udpPluginLocalPort ?? 0} onChange={(e) => set('server.udpPluginLocalPort', +e.target.value)} /></Field>
+          <Field label="UDP plugin local port" hint="0 = off — ignored when live telemetry is enabled"><Input disabled={disabled || !!cfg.telemetry?.enabled} type="number" value={S.udpPluginLocalPort ?? 0} onChange={(e) => set('server.udpPluginLocalPort', +e.target.value)} /></Field>
+        </div>
+      </Card>
+
+      <Card title="Live telemetry">
+        <p className="text-xs text-muted mb-3">Built-in UDP plugin feed powering the live timing page and admin controls.</p>
+        <div className="space-y-3">
+          <Check disabled={disabled} label="Enable live telemetry" checked={cfg.telemetry?.enabled !== false} onChange={(v) => set('telemetry.enabled', v)} hint="Writes UDP_PLUGIN_* into server_cfg.ini at start — manual UDP plugin fields are ignored while enabled" />
+          <div className="grid md:grid-cols-3 gap-3">
+            <Field label="Plugin port (server)" hint="UDP_PLUGIN_LOCAL_PORT"><Input disabled type="number" value={server.ports.plugin ?? (server.ports.game + 100)} /></Field>
+            <Field label="Listener port (manager)" hint="UDP_PLUGIN_ADDRESS port"><Input disabled type="number" value={server.ports.pluginListen ?? (server.ports.game + 101)} /></Field>
+            <Field label="Forward plugin traffic to" hint="optional ip:port for sTracker etc."><Input disabled={disabled || cfg.telemetry?.enabled === false} value={cfg.telemetry?.forwardTo || ''} onChange={(e) => set('telemetry.forwardTo', e.target.value)} placeholder="192.168.1.50:12000" /></Field>
+          </div>
         </div>
       </Card>
 
