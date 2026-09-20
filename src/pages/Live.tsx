@@ -129,10 +129,10 @@ export default function LivePage() {
           <div className="flex items-center gap-1 overflow-x-auto min-w-0">
             {picker.map((sv) => (
               <button key={sv.id} onClick={() => nav(`/live/${sv.id}`)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
-                  sv.id === serverId ? 'bg-red-500/15 text-foreground font-medium ring-1 ring-red-500/50' : 'text-muted hover:text-foreground hover:bg-accent/60'
+                className={`flex items-center gap-2 h-7 px-3 rounded-md text-xs font-medium whitespace-nowrap transition-all border ${
+                  sv.id === serverId ? 'border-red-500/60 bg-red-500/15 text-foreground' : 'border-transparent text-muted hover:text-foreground hover:bg-white/5'
                 }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
                 {sv.name}
               </button>
             ))}

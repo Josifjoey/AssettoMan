@@ -138,8 +138,8 @@ function AuthedApp() {
 
       {/* Staff area */}
       <Route path="/admin" element={<Protected><Layout><DashboardPage /></Layout></Protected>} />
-      <Route path="/admin/live" element={<Protected><Layout fullbleed><LiveAdminPage /></Layout></Protected>} />
-      <Route path="/admin/live/:serverId" element={<Protected><Layout fullbleed><LiveAdminPage /></Layout></Protected>} />
+      <Route path="/admin/live" element={<Protected><LiveAdminPage /></Protected>} />
+      <Route path="/admin/live/:serverId" element={<Protected><LiveAdminPage /></Protected>} />
       <Route path="/admin/servers/new" element={<Protected><Layout><ServerNewPage /></Layout></Protected>} />
       <Route path="/admin/servers/:id" element={<Protected><Layout><ServerDetailPage /></Layout></Protected>} />
       <Route path="/admin/content" element={<Protected><Layout><ContentPage /></Layout></Protected>} />

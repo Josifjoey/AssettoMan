@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, GameServer } from '../api';
 import { TrackMapCanvas, LiveSnapshot, TrackMap, LiveCar, carColor, fmtMs, fmtClock } from '../components/live/LiveView';
 import { Button, Badge, useToast, ConfirmDialog } from '../components/ui';
-import { Radio, Maximize, Users, Thermometer, CloudRain, Flag, Send, SkipForward, RotateCcw, MessageSquare } from 'lucide-react';
+import { Radio, Maximize, Users, Thermometer, CloudRain, Flag, Send, SkipForward, RotateCcw, MessageSquare, Gauge } from 'lucide-react';
 
 // Staff live-timing — broadcast layout: the map fills the page, chrome is
 // edge-docked translucent strips (top bar / right timing column / bottom
@@ -96,13 +96,14 @@ export default function LiveAdminPage() {
   const selCar = cars.find((c) => c.carId === selected) || null;
 
   return (
-    <div ref={mapRef} className="h-full min-h-0 relative rounded-xl overflow-hidden border border-border bg-[#05060a]">
+    <div ref={mapRef} className="h-screen relative overflow-hidden bg-[#05060a] text-foreground">
 
       {/* ============ MAP (fills everything) ============ */}
       {trackMap && !isAcc
         ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} /></div>
         : <div className={`absolute inset-0 ${isAcc ? '' : 'pr-[23rem]'} grid place-items-center px-6`}>
-            <div className="text-center text-muted text-sm max-w-sm">
+            <div className="hero-band absolute inset-0 opacity-30" />
+            <div className="relative text-center text-muted text-sm max-w-sm">
               {isAcc
                 ? 'ACC dedicated servers expose no telemetry — pick an AC server above.'
                 : 'No track map — the server needs a track with map.png + map.ini (Content tab → "Import names, images & maps").'}
@@ -111,22 +112,29 @@ export default function LiveAdminPage() {
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 120% at 45% 50%, transparent 55%, rgba(0,0,0,0.5) 100%)' }} />
 
       {/* ============ TOP STRIP (docked, full width) ============ */}
-      <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-2 h-12 px-3 bg-card/80 backdrop-blur-md border-b border-border/60">
+      <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-3 h-12 px-3 bg-card/80 backdrop-blur-md border-b border-border/60">
+        <Link to="/admin" className="text-muted hover:text-foreground shrink-0 flex items-center gap-1.5" title="Back to admin">
+          <Gauge size={15} className="text-primary" /><span className="text-xs font-medium hidden sm:inline">Admin</span>
+        </Link>
+        <span className="w-px h-4 bg-border shrink-0" />
         {/* picker */}
-        <div className="flex items-center gap-1 overflow-x-auto min-w-0">
-          {acServers.map((sv) => (
-            <button key={sv.id} onClick={() => { setSelected(null); setSnap({ active: false }); nav(`/admin/live/${sv.id}`); }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
-                sv.id === serverId ? 'bg-red-500/15 text-foreground font-medium ring-1 ring-red-500/50' : 'text-muted hover:text-foreground hover:bg-accent/60'
-              }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${sv.live?.running ? 'bg-green-500 animate-pulse' : 'bg-muted'}`} />
-              {sv.name}
-              {sv.live?.players != null && sv.live.running && <span className="text-[10px] text-muted tabular-nums">{sv.live.players}</span>}
-            </button>
-          ))}
+        <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1">
+          {acServers.map((sv) => {
+            const active = sv.id === serverId;
+            return (
+              <button key={sv.id} onClick={() => { setSelected(null); setSnap({ active: false }); nav(`/admin/live/${sv.id}`); }}
+                className={`flex items-center gap-2 h-7 px-3 rounded-md text-xs font-medium whitespace-nowrap transition-all border ${
+                  active ? 'border-red-500/60 bg-red-500/15 text-foreground' : 'border-transparent text-muted hover:text-foreground hover:bg-white/5'
+                }`}>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sv.live?.running ? 'bg-green-500 animate-pulse' : 'bg-muted'}`} />
+                {sv.name}
+                {sv.live?.players != null && sv.live.running && <span className="text-[10px] text-muted tabular-nums">{sv.live.players}</span>}
+              </button>
+            );
+          })}
           {acServers.length === 0 && <span className="text-xs text-muted px-1">No AC servers — <Link to="/admin/servers/new" className="text-primary">create one</Link></span>}
           {accServers.map((sv) => (
-            <span key={sv.id} title="ACC exposes no telemetry" className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted/50 cursor-not-allowed whitespace-nowrap">
+            <span key={sv.id} title="ACC exposes no telemetry" className="flex items-center gap-1.5 h-7 px-3 text-xs text-muted/50 cursor-not-allowed whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-full bg-muted/50" /><span className="line-through">{sv.name}</span>
             </span>
           ))}
