@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { api } from '../api';
-import LiveView, { LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
-import { Maximize, Radio, Gauge } from 'lucide-react';
+import LiveView, { TrackMapCanvas, LiveEvents, LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
+import { Maximize, Radio, Gauge, Users, Thermometer, CloudRain, Flag } from 'lucide-react';
 
-// Public spectator page — dark, full-bleed, built for a second monitor.
-// /live (no id) is a hub: pick any public AC server. ?hud=1 hides the sidebar.
+// Public spectator page — broadcast-style: track map fills the screen,
+// glass panels float over it. /live (no id) is a hub that auto-selects a
+// live server; ?hud=1 strips the sidebar for OBS overlays.
 // Data: SSE stream with a polling fallback.
+
+const glass = 'bg-card/75 backdrop-blur-md border border-border/70 rounded-xl shadow-2xl';
 
 interface LivePickerServer { id: string; name: string; type: string; running?: boolean; liveAvailable?: boolean }
 
@@ -22,6 +25,7 @@ export default function LivePage() {
   const [tick, setTick] = useState(0);
   const [picker, setPicker] = useState<LivePickerServer[]>([]);
   const lastDataRef = useRef(Date.now());
+  const rootRef = useRef<HTMLDivElement>(null);
 
   // Server picker list (all public AC servers)
   useEffect(() => {
@@ -108,63 +112,82 @@ export default function LivePage() {
   }, [snap.sessionTimeRemainingMs, tick]);
 
   return (
-    <div className="h-screen bg-[#0a0a0c] text-foreground flex flex-col overflow-hidden">
-      <header className="flex items-center gap-4 px-4 py-2.5 border-b border-border bg-card/60 shrink-0">
-        <Link to="/" className="flex items-center gap-1.5 text-muted hover:text-foreground transition-colors" title="Back to site">
-          <Gauge size={15} className="text-primary" />
-        </Link>
-        {/* Server picker */}
-        {!hud && picker.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto">
-            {picker.map((sv) => (
-              <button key={sv.id} onClick={() => nav(`/live/${sv.id}`)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs whitespace-nowrap transition-colors ${
-                  sv.id === serverId ? 'border-red-500/50 bg-red-500/10 text-foreground font-medium' : 'border-border bg-card/60 text-muted hover:text-foreground hover:bg-accent'
-                }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
-                {sv.name}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="flex items-center gap-2 shrink-0">
-          {stale || !snap.active
-            ? <span className="w-2.5 h-2.5 rounded-full bg-amber-400" title="waiting for data" />
-            : <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" title="LIVE" />}
-          <span className="font-semibold text-sm">{s?.serverName || serverName || 'Live timing'}</span>
-        </div>
-        {s && (
-          <>
-            <span className="text-xs text-muted">{s.name} · {s.typeName}</span>
-            <span className="text-xs font-mono">
-              {remaining != null ? fmtClock(remaining) : (s.laps ? `${s.laps} laps` : '')}
-            </span>
-            <span className="text-xs text-muted">{(s.track || '') + (s.trackConfig ? `/${s.trackConfig}` : '')}</span>
-            <span className="text-xs text-muted">{s.ambientTemp}°C air · {s.roadTemp}°C road · {s.weather}</span>
-          </>
-        )}
-        <span className="text-xs text-muted ml-auto">{snap.connectedCount ?? 0} connected</span>
-        <button
-          onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
-          className="text-muted hover:text-foreground" title="Fullscreen"
-        >
-          <Maximize size={15} />
-        </button>
-      </header>
+    <div ref={rootRef} className="h-screen bg-[#05060a] text-foreground relative overflow-hidden">
+      {/* Track map fills the screen */}
+      {trackMap
+        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} /></div>
+        : <div className="absolute inset-0 hero-band opacity-40" />}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0,0,0,0.5) 100%)' }} />
 
+      {/* ---- Top bar ---- */}
+      <div className="absolute top-0 inset-x-0 z-10 p-3 flex items-start gap-3 pointer-events-none">
+        <div className={`${glass} pointer-events-auto flex items-center gap-1.5 px-2.5 py-2 max-w-[60%]`}>
+          <Link to="/" className="text-muted hover:text-foreground px-1" title="Back to site"><Gauge size={15} className="text-primary" /></Link>
+          {!hud && picker.length > 0 && (
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {picker.map((sv) => (
+                <button key={sv.id} onClick={() => nav(`/live/${sv.id}`)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs whitespace-nowrap transition-colors ${
+                    sv.id === serverId ? 'bg-red-500/15 text-foreground font-medium ring-1 ring-red-500/50' : 'text-muted hover:text-foreground hover:bg-accent/60'
+                  }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
+                  {sv.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Session pill */}
+        <div className={`${glass} pointer-events-auto ml-auto flex items-center gap-3 px-3.5 py-2`}>
+          {stale || !snap.active
+            ? <span className="w-2 h-2 rounded-full bg-amber-400" title="waiting for data" />
+            : <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="LIVE" />}
+          <span className="font-semibold text-sm truncate max-w-[14rem]">{s?.serverName || serverName || 'Live timing'}</span>
+          {s && (
+            <>
+              <span className="w-px h-4 bg-border" />
+              <span className="text-xs text-muted">{s.typeName || s.name}</span>
+              <span className="text-sm font-mono tabular-nums font-semibold">{remaining != null ? fmtClock(remaining) : (s.laps ? `${s.laps}L` : '')}</span>
+              <span className="text-xs text-muted hidden md:flex items-center gap-1"><Flag size={11} />{s.track}{s.trackConfig ? `/${s.trackConfig}` : ''}</span>
+              <span className="text-xs text-muted hidden lg:flex items-center gap-1"><Thermometer size={11} />{s.ambientTemp}°/{s.roadTemp}°</span>
+              {s.weather && <span className="text-xs text-muted hidden lg:flex items-center gap-1"><CloudRain size={11} />{s.weather}</span>}
+              <span className="text-xs text-muted flex items-center gap-1"><Users size={11} />{snap.connectedCount ?? 0}</span>
+            </>
+          )}
+          <button onClick={() => rootRef.current?.requestFullscreen?.().catch(() => {})} className="text-muted hover:text-foreground" title="Fullscreen">
+            <Maximize size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Waiting banner */}
       {(!snap.active || (stale && !(snap.cars || []).length)) && (
-        <div className="px-4 py-2 text-xs text-amber-300 bg-amber-900/20 border-b border-amber-900/40 flex items-center gap-2">
-          <Radio size={12} /> Waiting for live data from the server…
+        <div className={`absolute top-16 inset-x-0 z-10 flex justify-center pointer-events-none ${hud ? '' : 'pr-[26rem]'}`}>
+          <div className="px-4 py-2 text-xs text-amber-300 bg-amber-950/70 border border-amber-900/60 rounded-full backdrop-blur flex items-center gap-2 pointer-events-auto">
+            <Radio size={12} /> Waiting for live data from the server…
+          </div>
         </div>
       )}
 
-      <main className="flex-1 min-h-0 p-4">
-        {hud ? (
-          <LiveView snap={snap} trackMap={trackMap} carNames={carNames} compact />
-        ) : (
-          <LiveView snap={snap} trackMap={trackMap} carNames={carNames} />
-        )}
-      </main>
+      {/* ---- Right column: timing tower + events ---- */}
+      {!hud && (
+        <div className="absolute top-[4.5rem] right-3 bottom-3 w-[24rem] z-10 flex flex-col gap-2.5 pointer-events-none">
+          <div className={`${glass} pointer-events-auto flex-1 min-h-0 overflow-hidden flex flex-col`}>
+            <LiveView snap={snap} trackMap={null} carNames={carNames} towerOnly />
+          </div>
+          <div className="pointer-events-auto shrink-0">
+            <LiveEvents events={snap.events || []} heightClass="h-32" />
+          </div>
+        </div>
+      )}
+
+      {/* No map fallback message */}
+      {!trackMap && (
+        <div className={`absolute inset-0 grid place-items-center pointer-events-none ${hud ? '' : 'pr-[26rem]'}`}>
+          <div className="text-muted text-sm">No track map available</div>
+        </div>
+      )}
     </div>
   );
 }

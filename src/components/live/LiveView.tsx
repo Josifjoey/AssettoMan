@@ -152,15 +152,54 @@ export function LiveEvents({ events, heightClass = 'h-36' }: { events: { type: s
   );
 }
 
-export default function LiveView({ snap, trackMap, carNames, onKick, compact }: {
+export default function LiveView({ snap, trackMap, carNames, onKick, compact, towerOnly }: {
   snap: LiveSnapshot;
   trackMap?: TrackMap | null;
   carNames?: Record<string, string>;
   onKick?: (carId: number) => void;
   compact?: boolean;
+  towerOnly?: boolean; // render just the timing table (used inside a floating panel)
 }) {
   const cars = snap.cars || [];
   const events = snap.events || [];
+
+  if (towerOnly) {
+    return (
+      <div className="overflow-auto flex-1 min-h-0">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-card/95 backdrop-blur z-10">
+            <tr className="text-left text-muted border-b border-border">
+              <th className="px-2.5 py-2 w-8">P</th>
+              <th className="px-2 py-2">Driver</th>
+              <th className="px-2 py-2">Car</th>
+              <th className="px-2 py-2 text-right">Laps</th>
+              <th className="px-2 py-2 text-right">Best</th>
+              <th className="px-2 py-2 text-right">Last</th>
+              <th className="px-2 py-2 text-right">Gap</th>
+              <th className="px-2 py-2 text-right">km/h</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cars.map((c) => (
+              <tr key={c.carId} className={`border-b border-border/40 ${!c.connected ? 'opacity-40' : ''}`}>
+                <td className="px-2.5 py-1.5 font-bold" style={{ color: carColor(c.carId) }}>{c.position}</td>
+                <td className="px-2 py-1.5 truncate max-w-[9rem]">{c.driverName || `Car ${c.carId}`}</td>
+                <td className="px-2 py-1.5 text-muted truncate max-w-[7rem]" title={c.model || ''}>{(c.model && carNames?.[c.model]) || c.model || '—'}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{c.laps}</td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums">{fmtMs(c.bestLapMs)}</td>
+                <td className="px-2 py-1.5 text-right font-mono tabular-nums">{fmtMs(c.lastLapMs)}</td>
+                <td className="px-2 py-1.5 text-right text-muted font-mono">{c.gapToLeader || ''}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{Math.round(c.speedKmh)}</td>
+              </tr>
+            ))}
+            {cars.length === 0 && (
+              <tr><td colSpan={8} className="px-3 py-8 text-center text-muted">No cars on track</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   if (compact) {
     return (
