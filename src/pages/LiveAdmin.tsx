@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, GameServer } from '../api';
 import { TrackMapCanvas, LiveSnapshot, TrackMap, LiveCar, carColor, fmtMs, fmtClock } from '../components/live/LiveView';
 import { Button, Badge, useToast, ConfirmDialog } from '../components/ui';
-import { Radio, Maximize, Users, Thermometer, CloudRain, Flag, Send, SkipForward, RotateCcw, MessageSquare, Gauge } from 'lucide-react';
+import { Radio, Maximize, Users, Thermometer, CloudRain, Flag, Send, SkipForward, RotateCcw, MessageSquare } from 'lucide-react';
 
 // Staff live-timing — broadcast layout: the map fills the page, chrome is
 // edge-docked translucent strips (top bar / right timing column / bottom
@@ -96,7 +96,7 @@ export default function LiveAdminPage() {
   const selCar = cars.find((c) => c.carId === selected) || null;
 
   return (
-    <div ref={mapRef} className="h-screen relative overflow-hidden bg-[#05060a] text-foreground">
+    <div ref={mapRef} className="h-full relative overflow-hidden bg-[#05060a] text-foreground">
 
       {/* ============ MAP (fills everything) ============ */}
       {trackMap && !isAcc
@@ -113,10 +113,6 @@ export default function LiveAdminPage() {
 
       {/* ============ TOP STRIP (docked, full width) ============ */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-3 h-12 px-3 bg-card/80 backdrop-blur-md border-b border-border/60">
-        <Link to="/admin" className="text-muted hover:text-foreground shrink-0 flex items-center gap-1.5" title="Back to admin">
-          <Gauge size={15} className="text-primary" /><span className="text-xs font-medium hidden sm:inline">Admin</span>
-        </Link>
-        <span className="w-px h-4 bg-border shrink-0" />
         {/* picker */}
         <div className="flex items-center gap-1 overflow-x-auto min-w-0 flex-1">
           {acServers.map((sv) => {

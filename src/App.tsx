@@ -113,9 +113,9 @@ function Layout({ children, fullbleed }: { children: React.ReactNode; fullbleed?
             <Button variant="ghost" size="sm" icon={<Globe size={13} />}>View public site</Button>
           </Link>
         </header>
-        <main className={fullbleed ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 overflow-auto'}>
+        <main className={fullbleed ? 'flex-1 min-h-0 overflow-hidden relative' : 'flex-1 overflow-auto'}>
           {fullbleed
-            ? <div className="h-full min-h-0 p-3">{children}</div>
+            ? <div className="absolute inset-0">{children}</div>
             : <div className="max-w-6xl mx-auto px-8 py-6 space-y-6">{children}</div>}
         </main>
       </div>
@@ -138,8 +138,8 @@ function AuthedApp() {
 
       {/* Staff area */}
       <Route path="/admin" element={<Protected><Layout><DashboardPage /></Layout></Protected>} />
-      <Route path="/admin/live" element={<Protected><LiveAdminPage /></Protected>} />
-      <Route path="/admin/live/:serverId" element={<Protected><LiveAdminPage /></Protected>} />
+      <Route path="/admin/live" element={<Protected><Layout fullbleed><LiveAdminPage /></Layout></Protected>} />
+      <Route path="/admin/live/:serverId" element={<Protected><Layout fullbleed><LiveAdminPage /></Layout></Protected>} />
       <Route path="/admin/servers/new" element={<Protected><Layout><ServerNewPage /></Layout></Protected>} />
       <Route path="/admin/servers/:id" element={<Protected><Layout><ServerDetailPage /></Layout></Protected>} />
       <Route path="/admin/content" element={<Protected><Layout><ContentPage /></Layout></Protected>} />
