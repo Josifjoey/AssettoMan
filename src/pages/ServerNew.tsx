@@ -73,11 +73,11 @@ export default function ServerNewPage() {
   );
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl space-y-8">
       <PageHeader eyebrow="New server" title="Create a server" />
 
       {/* step indicator */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 py-1">
         {STEPS.map((s, i) => (
           <React.Fragment key={s}>
             {i > 0 && <div className={clsx('h-px w-8', i <= step ? 'bg-primary' : 'bg-border')} />}
