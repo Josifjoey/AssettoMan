@@ -113,7 +113,7 @@ export default function LiveAdminPage() {
 
       {/* ============ MAP (fills everything) ============ */}
       {trackMap && !isAcc
-        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} selectedId={selected} /></div>
+        ? <div className="absolute top-0 bottom-0 left-0" style={{ right: towerW }}><TrackMapCanvas snap={snap} trackMap={trackMap} selectedId={selected} /></div>
         : <div className="absolute inset-0 grid place-items-center px-6" style={{ paddingRight: isAcc ? 0 : towerW }}>
             <div className="hero-band absolute inset-0 opacity-30" />
             <div className="relative text-center text-muted text-sm max-w-sm">

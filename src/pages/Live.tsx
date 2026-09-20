@@ -116,7 +116,7 @@ export default function LivePage() {
 
       {/* ============ MAP ============ */}
       {trackMap
-        ? <div className="absolute inset-0"><TrackMapCanvas snap={snap} trackMap={trackMap} selectedId={selected} /></div>
+        ? <div className="absolute top-0 bottom-0 left-0" style={{ right: hud ? 0 : '23rem' }}><TrackMapCanvas snap={snap} trackMap={trackMap} selectedId={selected} /></div>
         : <div className={`absolute inset-0 ${hud ? '' : 'pr-[23rem]'} grid place-items-center px-6`}>
             <div className="hero-band absolute inset-0 opacity-30" />
             <div className="relative text-muted text-sm">No track map available</div>
