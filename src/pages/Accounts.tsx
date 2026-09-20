@@ -3,6 +3,38 @@ import { api, User } from '../api';
 import { Card, Input, Select, Field, Button, Badge, PageHeader, ConfirmDialog, useToast } from '../components/ui';
 import { Plus, Trash2, KeyRound } from 'lucide-react';
 
+function ResetPasswordDialog({ user, onDone }: { user: User; onDone: () => void }) {
+  const toast = useToast();
+  const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.length < 8) return toast.error('Password must be at least 8 characters');
+    setBusy(true);
+    try {
+      await api.patch(`/accounts/${user.id}`, { password: pw });
+      toast.success(`Password reset for ${user.username}`);
+      onDone();
+    } catch (err: any) { toast.error(err.message); setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/60 backdrop-blur-sm" onClick={onDone}>
+      <form onSubmit={submit} className="bg-card border border-border rounded-xl w-full max-w-sm p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-semibold font-display">Reset password — {user.username}</h3>
+        <div className="mt-4">
+          <Field label="New password" hint="Minimum 8 characters">
+            <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus minLength={8} required />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Button type="button" variant="secondary" size="sm" onClick={onDone}>Cancel</Button>
+          <Button type="submit" size="sm" loading={busy}>Reset password</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function AccountsPage() {
   const toast = useToast();
   const [users, setUsers] = useState<User[]>([]);
@@ -10,6 +42,7 @@ export default function AccountsPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('manager');
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [resetUser, setResetUser] = useState<User | null>(null);
 
   const load = async () => {
     const { data } = await api.get('/accounts');
@@ -32,13 +65,7 @@ export default function AccountsPage() {
     catch (e: any) { toast.error(e.message); }
   };
 
-  const resetPw = async (id: string, name: string) => {
-    const pw = prompt(`New password for ${name} (min 8 chars):`);
-    if (!pw) return;
-    if (pw.length < 8) return toast.error('Password too short');
-    await patch(id, { password: pw });
-    toast.success(`Password reset for ${name}`);
-  };
+
 
   return (
     <>
@@ -86,7 +113,7 @@ export default function AccountsPage() {
                   <td className="px-3 py-3 text-xs text-muted">{u.last_login ? new Date(u.last_login).toLocaleString() : 'never'}</td>
                   <td className="px-3 py-3 pr-5 text-right">
                     <div className="inline-flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => resetPw(u.id, u.username)} title="Reset password" icon={<KeyRound size={13} />} aria-label="Reset password" />
+                      <Button variant="ghost" size="sm" onClick={() => setResetUser(u)} title="Reset password" icon={<KeyRound size={13} />} aria-label="Reset password" />
                       <Button variant="ghost" size="sm" onClick={() => setDeleteUser(u)} title="Delete" icon={<Trash2 size={13} className="text-danger" />} aria-label="Delete" />
                     </div>
                   </td>
@@ -96,6 +123,8 @@ export default function AccountsPage() {
           </table>
         </Card>
       </div>
+
+      {resetUser && <ResetPasswordDialog user={resetUser} onDone={() => setResetUser(null)} />}
 
       {deleteUser && (
         <ConfirmDialog

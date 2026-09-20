@@ -88,7 +88,7 @@ export default function ServerDetailPage() {
     { id: 'entries', label: server.type === 'acc' ? 'Entry List & BoP' : 'Entry List' },
     ...(server.type !== 'acc' ? [{ id: 'live', label: 'Live' }] : []),
     { id: 'results', label: 'Results' },
-    ...(server.type === 'ac_modded' || server.type === 'assettoserver' ? [{ id: 'content', label: 'Mod Content' }] : []),
+    ...(server.type !== 'acc' ? [{ id: 'content', label: 'Content' }] : []),
     { id: 'files', label: 'Files' },
     { id: 'logs', label: 'Logs' },
   ];

@@ -104,6 +104,20 @@ router.get('/download/:id', async (req, res) => {
   res.download(item.file_path, item.filename || `${item.name}.zip`);
 });
 
+// When a car/track has no local ui image but a content link was added with a
+// fetched preview image, redirect to it (e.g. the Assetto World page image).
+async function externalImage(serverId, kind, contentId) {
+  const db = await getDb();
+  const row = await db.get(
+    `SELECT preview_image FROM content_items
+     WHERE content_id = ? AND kind = ? AND enabled = 1 AND preview_image IS NOT NULL AND preview_image != ''
+       AND (server_id = ? OR server_id IS NULL)
+     ORDER BY CASE WHEN server_id = ? THEN 0 ELSE 1 END LIMIT 1`,
+    contentId, kind, serverId, serverId);
+  const url = row?.preview_image || null;
+  return url && /^https?:\/\//i.test(url) ? url : null;
+}
+
 async function loadPublicAcServer(req, res) {
   const db = await getDb();
   const server = await db.get("SELECT * FROM servers WHERE id = ? AND is_public = 1 AND type != 'acc'", req.params.serverId);
@@ -120,7 +134,12 @@ router.get('/content-image/:serverId/car/:carId', async (req, res) => {
   if (!server) return;
   const { carId } = req.params;
   if (!safeId(carId)) return res.status(400).json({ error: 'Invalid id' });
-  sendImage(res, carImagePath(server, carId));
+  const file = carImagePath(server, carId);
+  if (!file || !fs.existsSync(file)) {
+    const ext = await externalImage(server.id, 'car', carId);
+    if (ext) return res.redirect(ext);
+  }
+  sendImage(res, file);
 });
 
 // GET /api/public/content-image/:serverId/track/:trackId(/:layout)? — preview, outline or map
@@ -129,7 +148,13 @@ router.get(['/content-image/:serverId/track/:trackId', '/content-image/:serverId
   if (!server) return;
   const { trackId, layout } = req.params;
   if (!safeId(trackId) || (layout && !safeId(layout))) return res.status(400).json({ error: 'Invalid id' });
-  sendImage(res, trackImagePath(server, trackId, layout, { map: req.query.map === '1', outline: req.query.outline === '1' }));
+  const file = trackImagePath(server, trackId, layout, { map: req.query.map === '1', outline: req.query.outline === '1' });
+  // map.png needs the matching map.ini projection — only preview/outline fall back to external images
+  if ((!file || !fs.existsSync(file)) && req.query.map !== '1') {
+    const ext = await externalImage(server.id, 'track', trackId);
+    if (ext) return res.redirect(ext);
+  }
+  sendImage(res, file);
 });
 
 // GET /api/public/live/:serverId — one-shot telemetry snapshot (guid stripped)

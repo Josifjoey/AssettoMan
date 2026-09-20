@@ -12,6 +12,8 @@ Web-based manager for Assetto Corsa & Assetto Corsa Competizione dedicated serve
   - **ACC** — via `ghcr.io/ich777/accompetizione-server` (Wine; drop `accServer.exe` from the Steam "ACC Dedicated Server" tool into `acc/`)
 - **Full config UIs** — every ACC `cfg/*.json` file (settings, event incl. session list, eventRules, assistRules, entrylist, bop) and AC `server_cfg.ini` + `entry_list.ini` (sessions, dynamic track, weather slots, assists, penalties)
 - **At-a-glance status** — running/stopped, live track, player count (AC via its HTTP API), start/stop/restart, container logs, file browser
+- **Live timing** — `/admin/live` for staff (server picker, map, timing tower, per-car detail, admin controls) and `/live` for the public (same picker, spectator view). Powered by the AC UDP plugin protocol
+- **Content metadata** — "Import names, images & maps" copies ui/previews/track maps from a local AC install (`ac_install_path` in Settings, auto-detected); car/track images also fall back to external content links' preview images (e.g. an Assetto World page) when files aren't installed
 - **Public page** (site root `/`, no login) — live server cards, how-to-join, rules, car/track mod downloads
 - **Audit log**, JWT cookie auth, SQLite (WAL) — zero external services
 

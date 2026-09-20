@@ -19,6 +19,7 @@ import { writeAssettoServerExtraCfg } from '../configAssettoServer.js';
 import { listResults, getResult } from '../results.js';
 import { startTelemetry, stopTelemetry, getSnapshot, telemetrySend, managerAddressFor } from '../telemetry.js';
 import { safeId, trackMapFor, trackImagePath, sendImage, carsMetaFor } from '../contentMeta.js';
+import { detectAcInstall, importMetadata } from '../acInstall.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -344,6 +345,18 @@ router.get(['/:id/map-image/:trackId', '/:id/map-image/:trackId/:layout'], async
   const { trackId, layout } = req.params;
   if (!safeId(trackId) || (layout && !safeId(layout))) return res.status(400).json({ error: 'Invalid id' });
   sendImage(res, trackImagePath(server, trackId, layout, { map: true }));
+});
+
+// POST /api/servers/:id/import-ac-metadata — copy ui/previews/maps from a local AC install
+router.post('/:id/import-ac-metadata', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  if (server.type === 'acc') return res.status(400).json({ error: 'AC content only' });
+  const det = await detectAcInstall();
+  if (!det.found) return res.status(404).json({ error: 'No Assetto Corsa install found — set the path in Settings' });
+  const result = await importMetadata(server, det.path, req.body || null);
+  await audit(req.user.id, req.user.username, 'import_ac_metadata', `${server.name}: ${result.files} files`);
+  res.json({ installPath: det.path, ...result });
 });
 
 // GET /api/servers/:id/results — session result archive (list)

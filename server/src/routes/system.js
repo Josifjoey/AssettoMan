@@ -5,11 +5,12 @@ import { getDb, getSetting, setSetting, audit } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { dockerAvailable } from '../docker.js';
 import { DATA_DIR, HOST_DATA_DIR } from '../paths.js';
+import { detectAcInstall, listAcContent } from '../acInstall.js';
 
 const router = Router();
 router.use(requireAuth);
 
-const PUBLIC_KEYS = ['public_site_name', 'public_about', 'public_rules', 'public_discord_url', 'public_join_info', 'public_base_url', 'public_game_host'];
+const PUBLIC_KEYS = ['public_site_name', 'public_about', 'public_rules', 'public_discord_url', 'public_join_info', 'public_base_url', 'public_game_host', 'ac_install_path'];
 
 // GET /api/system/health — docker connectivity + path mapping sanity
 router.get('/health', async (req, res) => {
@@ -36,6 +37,12 @@ router.put('/settings', async (req, res) => {
   }
   await audit(req.user.id, req.user.username, 'settings_updated', PUBLIC_KEYS.filter((k) => body[k] !== undefined).join(','));
   res.json({ ok: true });
+});
+
+// GET /api/system/ac-install — detect a local Assetto Corsa install
+router.get('/ac-install', async (req, res) => {
+  const det = await detectAcInstall();
+  res.json({ ...det, content: det.found ? listAcContent(det.path) : null });
 });
 
 // GET /api/system/audit — recent audit log entries

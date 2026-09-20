@@ -65,6 +65,16 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      <Card title="Assetto Corsa install" subtitle="Content metadata source"
+            actions={<Button size="sm" loading={saving === 'ac_install_path'} onClick={() => save(['ac_install_path'])}>Save</Button>}>
+        <div className="space-y-4">
+          <Field label="Install path" hint="Auto-detected if blank — e.g. C:/Program Files (x86)/Steam/steamapps/common/assettocorsa">
+            <Input mono value={settings.ac_install_path || ''} onChange={(e) => set('ac_install_path', e.target.value)} placeholder="auto-detect" />
+          </Field>
+          <p className="text-xs text-muted">Used by "Import names, images &amp; maps" on a server's Mod Content tab — copies only small metadata files (previews, track maps, ui json), never the full game.</p>
+        </div>
+      </Card>
+
       <Card title="System" subtitle="Health — read only">
         <dl className="text-sm space-y-2.5">
           <div className="flex justify-between"><dt className="text-muted">Docker socket</dt><dd>{health?.docker ? <Badge tone="green" dot>connected</Badge> : <Badge tone="red" dot>unreachable</Badge>}</dd></div>

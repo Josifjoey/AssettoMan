@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, GameServer, ContentItem, CmContent } from '../../api';
 import { Card, Button, Select, Field, Input, Check, useToast } from '../ui';
-import { Upload, Package, Trash2, Download, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Upload, Package, Trash2, Download, CheckCircle2, AlertTriangle, FolderInput } from 'lucide-react';
 
 // Uploads mod zips straight into this server's content folders and lists
 // what's installed vs. what's in the library.
@@ -14,6 +14,8 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
   const [name, setName] = useState('');
   const [publicDl, setPublicDl] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [acInstall, setAcInstall] = useState<{ found: boolean; path?: string; cars?: number; tracks?: number } | null>(null);
+  const [importing, setImporting] = useState(false);
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -22,8 +24,21 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
     setItems(data.items);
     const cmRes = await api.get(`/servers/${server.id}/cm-content`).catch(() => null);
     if (cmRes) setCm(cmRes.data);
+    api.get('/system/ac-install').then((r) => setAcInstall(r.data)).catch(() => {});
   };
   useEffect(() => { load(); }, [server.id]);
+
+  const importMeta = async () => {
+    setImporting(true);
+    try {
+      const { data } = await api.post(`/servers/${server.id}/import-ac-metadata`);
+      toast.success(`Imported ${data.files} files — ${data.cars.length} cars, ${data.tracks.length} tracks${data.missing.length ? ` (${data.missing.length} not in AC install)` : ''}`);
+      onChanged();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setImporting(false);
+  };
 
   const upload = async () => {
     const f = fileRef.current?.files?.[0];
@@ -108,6 +123,26 @@ export default function ModInstaller({ server, onChanged }: { server: GameServer
           </div>
         </Card>
       </div>
+
+      {acInstall && (
+        <Card title="Assetto Corsa install">
+          <div className="flex items-center gap-3 flex-wrap">
+            {acInstall.found ? (
+              <>
+                <div className="text-sm text-muted flex-1 min-w-0">
+                  Found at <span className="font-mono text-xs">{acInstall.path}</span> — {acInstall.cars} cars, {acInstall.tracks} tracks.
+                  Import copies only metadata (previews, names, track maps) for the content this server uses.
+                </div>
+                <Button variant="secondary" size="sm" onClick={importMeta} disabled={importing}>
+                  <FolderInput size={13} className="inline mr-1" />{importing ? 'Importing…' : 'Import names, images & maps'}
+                </Button>
+              </>
+            ) : (
+              <div className="text-sm text-muted">No Assetto Corsa install detected — set the install path under <Link to="/admin/settings" className="text-primary hover:underline">Settings</Link>.</div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card title="Upload mod">
         <p className="text-xs text-muted mb-3">Drop a car/track .zip — it's extracted into this server's <code>content/</code> folder automatically. Standard layouts (content/cars/…, cars/…, bare folder) all work.</p>
