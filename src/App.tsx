@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import { clsx } from 'clsx';
-import { Gauge, Server, Package, Users, Settings as SettingsIcon, LogOut, Globe, Activity, ExternalLink } from 'lucide-react';
+import { Gauge, Server, Package, Users, Settings as SettingsIcon, LogOut, Globe, Activity, ExternalLink, Radio } from 'lucide-react';
 import { ToastProvider, Button, Badge } from './components/ui';
 import { useSystemHealth } from './hooks';
 
@@ -16,6 +16,7 @@ import ContentPage from './pages/Content';
 import SettingsPage from './pages/Settings';
 import PublicPage from './pages/Public';
 import LivePage from './pages/Live';
+import LiveAdminPage from './pages/LiveAdmin';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, setupRequired, loading } = useAuth();
@@ -66,6 +67,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         <nav className="p-2 lg:p-3 space-y-1 flex-1 overflow-y-auto">
           <div className="eyebrow px-3 pt-2 pb-1 hidden lg:block">Manage</div>
           <NavItem to="/admin" end icon={<Activity size={16} />} label="Dashboard" />
+          <NavItem to="/admin/live" icon={<Radio size={16} />} label="Live" />
           <NavItem to="/admin/servers/new" icon={<Server size={16} />} label="New Server" />
           <NavItem to="/admin/content" icon={<Package size={16} />} label="Content" />
           {user?.role === 'admin' && (
@@ -125,6 +127,7 @@ function AuthedApp() {
     <Routes>
       {/* Public site */}
       <Route path="/" element={<PublicPage />} />
+      <Route path="/live" element={<LivePage />} />
       <Route path="/live/:serverId" element={<LivePage />} />
 
       {/* Auth */}
@@ -133,6 +136,8 @@ function AuthedApp() {
 
       {/* Staff area */}
       <Route path="/admin" element={<Protected><Layout><DashboardPage /></Layout></Protected>} />
+      <Route path="/admin/live" element={<Protected><Layout><LiveAdminPage /></Layout></Protected>} />
+      <Route path="/admin/live/:serverId" element={<Protected><Layout><LiveAdminPage /></Layout></Protected>} />
       <Route path="/admin/servers/new" element={<Protected><Layout><ServerNewPage /></Layout></Protected>} />
       <Route path="/admin/servers/:id" element={<Protected><Layout><ServerDetailPage /></Layout></Protected>} />
       <Route path="/admin/content" element={<Protected><Layout><ContentPage /></Layout></Protected>} />

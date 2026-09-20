@@ -1,48 +1,15 @@
 import { Router } from 'express';
 import fs from 'fs';
-import path from 'path';
 import { getDb, getSetting } from '../db.js';
 import { getServerStatus } from '../status.js';
 import { getSnapshot, subscribe, isLive } from '../telemetry.js';
 import { listResults, getPublicResult, publicLeaderboard } from '../results.js';
+import { safeId, trackUiJson, sendImage, carImagePath, trackImagePath, trackMapFor, carsMetaFor } from '../contentMeta.js';
 
 // Public-facing API — no auth. Powers the community page: live server
 // status, mod downloads, server rules.
 
 const router = Router();
-
-const SAFE_ID = /^[A-Za-z0-9_\-. ]+$/;
-
-function safeId(v) {
-  return typeof v === 'string' && v.length > 0 && v.length < 128 && SAFE_ID.test(v);
-}
-
-// Some AC ui_*.json files carry a BOM or trailing commas — parse defensively.
-function parseJsonLoose(file) {
-  try {
-    let text = fs.readFileSync(file, 'utf8').replace(/^﻿/, '');
-    text = text.replace(/,\s*([}\]])/g, '$1');
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function contentDir(server) {
-  return path.join(server.data_dir, 'serverfiles', 'content');
-}
-
-function trackUiJson(server, trackId, layout) {
-  const base = path.join(contentDir(server), 'tracks', trackId, 'ui');
-  const candidates = layout
-    ? [path.join(base, layout, 'ui_track.json'), path.join(base, 'ui_track.json')]
-    : [path.join(base, 'ui_track.json')];
-  for (const f of candidates) {
-    const j = parseJsonLoose(f);
-    if (j) return j;
-  }
-  return null;
-}
 
 // GET /api/public/site — site name, rules, about text
 router.get('/site', async (req, res) => {
@@ -91,15 +58,7 @@ router.get('/servers', async (req, res) => {
       s.hasPassword = !!cfg?.server?.password;
       const carIds = String(cfg?.server?.cars || '').split(';').filter(Boolean);
       s.cars = carIds;
-      s.carsMeta = carIds.map((id) => {
-        const ui = parseJsonLoose(path.join(contentDir(row), 'cars', id, 'ui', 'ui_car.json'));
-        return {
-          id,
-          name: ui?.name || id,
-          brand: ui?.brand || null,
-          previewUrl: `/api/public/content-image/${row.id}/car/${encodeURIComponent(id)}`,
-        };
-      });
+      s.carsMeta = carsMetaFor(row, (id) => `/api/public/content-image/${row.id}/car/${encodeURIComponent(id)}`);
       const trackId = cfg?.server?.track || null;
       const trackLayout = cfg?.server?.trackConfig || null;
       if (trackId) {
@@ -155,35 +114,13 @@ async function loadPublicAcServer(req, res) {
   return server;
 }
 
-function sendImage(res, file) {
-  if (!file || !fs.existsSync(file)) return res.status(404).json({ error: 'Image not found' });
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.sendFile(file);
-}
-
 // GET /api/public/content-image/:serverId/car/:carId — car preview image
 router.get('/content-image/:serverId/car/:carId', async (req, res) => {
   const server = await loadPublicAcServer(req, res);
   if (!server) return;
   const { carId } = req.params;
   if (!safeId(carId)) return res.status(400).json({ error: 'Invalid id' });
-  const dir = path.join(contentDir(server), 'cars', carId, 'ui');
-  if (!dir.startsWith(contentDir(server))) return res.status(400).json({ error: 'Invalid path' });
-
-  let file = null;
-  try {
-    const skinsDir = path.join(dir, 'skins');
-    const firstSkin = fs.readdirSync(skinsDir, { withFileTypes: true }).find((d) => d.isDirectory())?.name;
-    if (firstSkin && safeId(firstSkin)) {
-      const p = path.join(skinsDir, firstSkin, 'preview.jpg');
-      if (fs.existsSync(p)) file = p;
-    }
-  } catch { /* no skins dir */ }
-  if (!file) {
-    const badge = path.join(dir, 'badge.png');
-    if (fs.existsSync(badge)) file = badge;
-  }
-  sendImage(res, file);
+  sendImage(res, carImagePath(server, carId));
 });
 
 // GET /api/public/content-image/:serverId/track/:trackId(/:layout)? — preview, outline or map
@@ -192,21 +129,7 @@ router.get(['/content-image/:serverId/track/:trackId', '/content-image/:serverId
   if (!server) return;
   const { trackId, layout } = req.params;
   if (!safeId(trackId) || (layout && !safeId(layout))) return res.status(400).json({ error: 'Invalid id' });
-  const base = path.join(contentDir(server), 'tracks', trackId, 'ui');
-  const dir = layout ? path.join(base, layout) : base;
-  if (!dir.startsWith(contentDir(server))) return res.status(400).json({ error: 'Invalid path' });
-
-  let file;
-  if (req.query.map === '1') {
-    // map.png sits next to data/map.ini (track root or layout root)
-    const mapDir = layout ? path.join(contentDir(server), 'tracks', trackId, layout) : path.join(contentDir(server), 'tracks', trackId);
-    file = path.join(mapDir, 'map.png');
-  } else {
-    const name = req.query.outline === '1' ? 'outline.png' : 'preview.png';
-    file = path.join(dir, name);
-    if (!fs.existsSync(file) && layout) file = path.join(base, name); // fall back to base ui/
-  }
-  sendImage(res, file);
+  sendImage(res, trackImagePath(server, trackId, layout, { map: req.query.map === '1', outline: req.query.outline === '1' }));
 });
 
 // GET /api/public/live/:serverId — one-shot telemetry snapshot (guid stripped)
@@ -247,40 +170,12 @@ function stripGuids(snap) {
 router.get('/track-map/:serverId', async (req, res) => {
   const server = await loadPublicAcServer(req, res);
   if (!server) return;
-
-  const cfg = JSON.parse(server.config || '{}');
-  const snap = getSnapshot(server.id);
-  const track = snap?.session?.track || cfg?.server?.track;
-  const layout = snap?.session?.trackConfig || cfg?.server?.trackConfig || '';
-  if (!track || !safeId(track) || (layout && !safeId(layout))) {
-    return res.status(404).json({ error: 'No track map' });
-  }
-
-  const trackDir = path.join(contentDir(server), 'tracks', track);
-  const iniCandidates = [
-    layout ? path.join(trackDir, layout, 'data', 'map.ini') : null,
-    path.join(trackDir, 'data', 'map.ini'),
-  ].filter(Boolean);
-  let ini = null;
-  for (const f of iniCandidates) {
-    try { ini = fs.readFileSync(f, 'utf8'); break; } catch { /* try next */ }
-  }
-  if (!ini) return res.status(404).json({ error: 'No track map' });
-
-  const num = (key) => {
-    const m = ini.match(new RegExp(`^${key}\\s*=\\s*([-\\d.]+)`, 'mi'));
-    return m ? +m[1] : null;
-  };
-  const layoutPart = layout ? `/${encodeURIComponent(layout)}` : '';
-  res.json({
-    image: `/api/public/content-image/${server.id}/track/${encodeURIComponent(track)}${layoutPart}?map=1`,
-    track, layout,
-    params: {
-      width: num('WIDTH'), height: num('HEIGHT'),
-      xOffset: num('X_OFFSET'), zOffset: num('Z_OFFSET'),
-      scaleFactor: num('SCALE_FACTOR'), margin: num('MARGIN'),
-    },
+  const m = trackMapFor(server, (track, layout) => {
+    const layoutPart = layout ? `/${encodeURIComponent(layout)}` : '';
+    return `/api/public/content-image/${server.id}/track/${encodeURIComponent(track)}${layoutPart}?map=1`;
   });
+  if (!m) return res.status(404).json({ error: 'No track map' });
+  res.json(m);
 });
 
 async function loadPublicServer(req, res) {

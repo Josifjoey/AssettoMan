@@ -7,8 +7,9 @@ import { Flag, MessageSquare } from 'lucide-react';
 export interface LiveCar {
   carId: number; position?: number; driverName?: string | null; model?: string | null; skin?: string | null;
   connected: boolean; loaded?: boolean; laps: number; bestLapMs?: number | null; lastLapMs?: number | null;
-  totalTimeMs?: number | null; speedKmh: number; gear: number; splinePos: number;
+  totalTimeMs?: number | null; speedKmh: number; gear: number; rpm?: number; splinePos: number;
   pos: { x: number; y: number; z: number }; gapToLeader?: string;
+  lapHistory?: { ms: number; cuts: number; at: string }[];
 }
 export interface LiveSnapshot {
   active: boolean;
@@ -49,7 +50,7 @@ export function fmtClock(ms?: number | null) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function TrackMapCanvas({ snap, trackMap }: { snap: LiveSnapshot; trackMap: TrackMap }) {
+export function TrackMapCanvas({ snap, trackMap }: { snap: LiveSnapshot; trackMap: TrackMap }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const interpRef = useRef<Map<number, { x: number; z: number }>>(new Map());
@@ -136,6 +137,21 @@ function TrackMapCanvas({ snap, trackMap }: { snap: LiveSnapshot; trackMap: Trac
   return <canvas ref={canvasRef} className="w-full h-full block" />;
 }
 
+export function LiveEvents({ events, heightClass = 'h-36' }: { events: { type: string; at: string; text: string; carId?: number }[]; heightClass?: string }) {
+  return (
+    <div className={`bg-card border border-border rounded-lg p-2 overflow-auto ${heightClass}`}>
+      <div className="text-[10px] uppercase tracking-wide text-muted mb-1 px-1">Events</div>
+      {events.slice(0, 8).map((e, i) => (
+        <div key={i} className="flex gap-2 text-xs px-1 py-0.5">
+          <span className="text-muted shrink-0">{e.type === 'chat' ? <MessageSquare size={10} className="inline" /> : e.type === 'lap' ? <Flag size={10} className="inline" /> : '·'}</span>
+          <span className="truncate">{e.text}</span>
+        </div>
+      ))}
+      {events.length === 0 && <div className="text-xs text-muted px-1">No events yet.</div>}
+    </div>
+  );
+}
+
 export default function LiveView({ snap, trackMap, carNames, onKick, compact }: {
   snap: LiveSnapshot;
   trackMap?: TrackMap | null;
@@ -207,16 +223,7 @@ export default function LiveView({ snap, trackMap, carNames, onKick, compact }: 
           </table>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-2 h-36 overflow-auto">
-          <div className="text-[10px] uppercase tracking-wide text-muted mb-1 px-1">Events</div>
-          {events.slice(0, 8).map((e, i) => (
-            <div key={i} className="flex gap-2 text-xs px-1 py-0.5">
-              <span className="text-muted shrink-0">{e.type === 'chat' ? <MessageSquare size={10} className="inline" /> : e.type === 'lap' ? <Flag size={10} className="inline" /> : '·'}</span>
-              <span className="truncate">{e.text}</span>
-            </div>
-          ))}
-          {events.length === 0 && <div className="text-xs text-muted px-1">No events yet.</div>}
-        </div>
+        <LiveEvents events={events} />
       </div>
     </div>
   );

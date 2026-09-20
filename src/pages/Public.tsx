@@ -126,6 +126,11 @@ export default function PublicPage() {
           <span className="font-bold">{site.siteName || 'AssettoMan'}</span>
           <nav className="hidden md:flex items-center gap-5 ml-8">
             {sections.map(([id, label]) => <a key={id} href={`#${id}`} className={navItem}>{label}</a>)}
+            {servers.some((s) => s.type !== 'acc') && (
+              <Link to="/live" className="text-sm text-red-400 hover:text-red-300 transition flex items-center gap-1.5">
+                <Radio size={13} /> Live
+              </Link>
+            )}
           </nav>
           <div className="ml-auto flex items-center gap-3">
             {site.discordUrl && (

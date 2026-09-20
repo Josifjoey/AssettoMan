@@ -18,6 +18,7 @@ import { writeCmContent, cmContentStatus } from '../cmContent.js';
 import { writeAssettoServerExtraCfg } from '../configAssettoServer.js';
 import { listResults, getResult } from '../results.js';
 import { startTelemetry, stopTelemetry, getSnapshot, telemetrySend, managerAddressFor } from '../telemetry.js';
+import { safeId, trackMapFor, trackImagePath, sendImage, carsMetaFor } from '../contentMeta.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -320,6 +321,30 @@ router.post('/:id/telemetry/kick', telemetryAction('kick', (req) => ({ carId: +r
 router.post('/:id/telemetry/next-session', telemetryAction('nextSession', {}, 'telemetry_next_session'));
 router.post('/:id/telemetry/restart-session', telemetryAction('restartSession', {}, 'telemetry_restart_session'));
 router.post('/:id/telemetry/admin', telemetryAction('admin', (req) => ({ command: String(req.body?.command || '').slice(0, 200) }), 'telemetry_admin', (req, s) => `${s.name}: ${String(req.body?.command || '').slice(0, 80)}`));
+
+// GET /api/servers/:id/track-map — admin version (works for non-public servers);
+// car names bundled so the live page needs no extra call.
+router.get('/:id/track-map', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  if (server.type === 'acc') return res.status(404).json({ error: 'No track map' });
+  const m = trackMapFor(server, (track, layout) => {
+    const layoutPart = layout ? `/${encodeURIComponent(layout)}` : '';
+    return `/api/servers/${server.id}/map-image/${encodeURIComponent(track)}${layoutPart}`;
+  });
+  if (!m) return res.status(404).json({ error: 'No track map' });
+  m.carsMeta = carsMetaFor(server);
+  res.json(m);
+});
+
+// GET /api/servers/:id/map-image/:trackId(/:layout)? — map.png for the canvas
+router.get(['/:id/map-image/:trackId', '/:id/map-image/:trackId/:layout'], async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+  const { trackId, layout } = req.params;
+  if (!safeId(trackId) || (layout && !safeId(layout))) return res.status(400).json({ error: 'Invalid id' });
+  sendImage(res, trackImagePath(server, trackId, layout, { map: true }));
+});
 
 // GET /api/servers/:id/results — session result archive (list)
 router.get('/:id/results', async (req, res) => {

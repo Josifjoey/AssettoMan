@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import LiveView, { LiveSnapshot, TrackMap, fmtClock } from '../components/live/LiveView';
-import { Maximize, Radio } from 'lucide-react';
+import { Maximize, Radio, Gauge } from 'lucide-react';
 
 // Public spectator page — dark, full-bleed, built for a second monitor.
-// Data: SSE stream with a polling fallback. ?hud=1 hides the sidebar.
+// /live (no id) is a hub: pick any public AC server. ?hud=1 hides the sidebar.
+// Data: SSE stream with a polling fallback.
+
+interface LivePickerServer { id: string; name: string; type: string; running?: boolean; liveAvailable?: boolean }
 
 export default function LivePage() {
   const { serverId } = useParams();
+  const nav = useNavigate();
   const [params] = useSearchParams();
   const hud = params.get('hud') === '1';
   const [snap, setSnap] = useState<LiveSnapshot>({ active: false });
@@ -16,7 +20,26 @@ export default function LivePage() {
   const [carNames, setCarNames] = useState<Record<string, string>>({});
   const [serverName, setServerName] = useState('');
   const [tick, setTick] = useState(0);
+  const [picker, setPicker] = useState<LivePickerServer[]>([]);
   const lastDataRef = useRef(Date.now());
+
+  // Server picker list (all public AC servers)
+  useEffect(() => {
+    let dead = false;
+    const load = () => api.get('/public/servers')
+      .then((r) => { if (!dead) setPicker((r.data.servers || []).filter((s: any) => s.type !== 'acc')); })
+      .catch(() => {});
+    load();
+    const t = setInterval(load, 20000);
+    return () => { dead = true; clearInterval(t); };
+  }, []);
+
+  // Hub mode: auto-select a live server (or the first one)
+  useEffect(() => {
+    if (serverId || picker.length === 0) return;
+    const pick = picker.find((s) => s.liveAvailable) || picker.find((s) => s.running) || picker[0];
+    if (pick) nav(`/live/${pick.id}`, { replace: true });
+  }, [serverId, picker]);
 
   // SSE with polling fallback
   useEffect(() => {
@@ -54,6 +77,7 @@ export default function LivePage() {
   // Track map + car names
   useEffect(() => {
     if (!serverId) return;
+    setSnap({ active: false });
     api.get(`/public/track-map/${serverId}`).then((r) => setTrackMap(r.data)).catch(() => setTrackMap(null));
     api.get('/public/servers').then((r) => {
       const s = (r.data.servers || []).find((x: any) => x.id === serverId);
@@ -62,6 +86,9 @@ export default function LivePage() {
         const names: Record<string, string> = {};
         for (const c of s.carsMeta || []) names[c.id] = c.name;
         setCarNames(names);
+      } else {
+        setServerName('');
+        setCarNames({});
       }
     }).catch(() => {});
   }, [serverId, snap.session?.track]);
@@ -83,7 +110,24 @@ export default function LivePage() {
   return (
     <div className="h-screen bg-[#0a0a0c] text-foreground flex flex-col overflow-hidden">
       <header className="flex items-center gap-4 px-4 py-2.5 border-b border-border bg-card/60 shrink-0">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-1.5 text-muted hover:text-foreground transition-colors" title="Back to site">
+          <Gauge size={15} className="text-primary" />
+        </Link>
+        {/* Server picker */}
+        {!hud && picker.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {picker.map((sv) => (
+              <button key={sv.id} onClick={() => nav(`/live/${sv.id}`)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs whitespace-nowrap transition-colors ${
+                  sv.id === serverId ? 'border-red-500/50 bg-red-500/10 text-foreground font-medium' : 'border-border bg-card/60 text-muted hover:text-foreground hover:bg-accent'
+                }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${sv.liveAvailable ? 'bg-red-500 animate-pulse' : sv.running ? 'bg-green-500' : 'bg-muted'}`} />
+                {sv.name}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2 shrink-0">
           {stale || !snap.active
             ? <span className="w-2.5 h-2.5 rounded-full bg-amber-400" title="waiting for data" />
             : <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" title="LIVE" />}

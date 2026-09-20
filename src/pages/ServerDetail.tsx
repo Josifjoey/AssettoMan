@@ -256,7 +256,7 @@ function LiveTab({ server }: { server: GameServer }) {
     };
     load();
     const t = setInterval(load, 2000);
-    api.get(`/public/track-map/${server.id}`).then((r) => { if (!dead) setTrackMap(r.data); }).catch(() => {});
+    api.get(`/servers/${server.id}/track-map`).then((r) => { if (!dead) setTrackMap(r.data); }).catch(() => {});
     return () => { dead = true; clearInterval(t); };
   }, [server.id]);
 
@@ -277,6 +277,7 @@ function LiveTab({ server }: { server: GameServer }) {
             : 'Telemetry not active — start the server with live telemetry enabled.'}
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Link to={`/admin/live/${server.id}`} className="text-xs text-primary hover:underline mr-1">Full live view →</Link>
           <Input className="w-56" placeholder="Broadcast chat…" value={chat} onChange={(e) => setChat(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && chat) { act('chat', { message: chat }); setChat(''); } }} />
           <Button variant="secondary" size="sm" disabled={!chat} onClick={() => { act('chat', { message: chat }); setChat(''); }}>Send</Button>
