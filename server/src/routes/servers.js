@@ -20,6 +20,8 @@ import { listResults, getResult } from '../results.js';
 import { startTelemetry, stopTelemetry, getSnapshot, telemetrySend, managerAddressFor } from '../telemetry.js';
 import { safeId, trackMapFor, trackImagePath, sendImage, carsMetaFor, availableContent, carImagePath, carSkinImagePath, externalImageFor } from '../contentMeta.js';
 import { detectAcInstall, importMetadata } from '../acInstall.js';
+import { zipBuffers } from '../zip.js';
+import os from 'os';
 
 const router = Router();
 router.use(requireAuth);
@@ -201,6 +203,47 @@ router.put('/:id/config', async (req, res) => {
   );
   invalidateStatus(server.id);
   res.json({ ok: true });
+});
+
+// GET /api/servers/:id/export-config — download the generated config files as a
+// zip (cfg/… layout, ready to drop into a manually-run server install).
+router.get('/:id/export-config', async (req, res) => {
+  const server = await loadServer(req, res);
+  if (!server) return;
+
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'am-export-'));
+  try {
+    const exportServer = { ...server, data_dir: tmp };
+    writeConfigsFor(exportServer);
+    if (server.type === 'assettoserver') {
+      await writeAssettoServerExtraCfg(tmp, server.config, {
+        telemetryEnabled: server.config?.telemetry?.enabled !== false,
+      }).catch(() => {});
+    }
+    if (server.type !== 'acc') {
+      const baseUrl = String(await getSetting('public_base_url', '')).replace(/\/+$/, '');
+      await writeCmContent({ ...server, data_dir: tmp }, baseUrl).catch(() => {});
+    }
+
+    const root = server.type === 'acc' ? path.join(tmp, 'acc', 'cfg') : path.join(tmp, 'serverfiles', 'cfg');
+    const entries = [];
+    const walk = (dir) => {
+      for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+        const f = path.join(dir, d.name);
+        if (d.isDirectory()) walk(f);
+        else entries.push({ name: 'cfg/' + path.relative(root, f).split(path.sep).join('/'), data: fs.readFileSync(f) });
+      }
+    };
+    if (fs.existsSync(root)) walk(root);
+    if (entries.length === 0) return res.status(404).json({ error: 'No config generated' });
+
+    const fname = `${String(server.name).replace(/[^\w.-]+/g, '_')}-config.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+    res.send(zipBuffers(entries));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 // POST /api/servers/:id/provision — (re)create the docker container, or for

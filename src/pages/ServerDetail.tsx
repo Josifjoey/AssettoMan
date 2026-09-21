@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api, GameServer } from '../api';
 import { Card, Badge, Button, Tabs, Input, Field, Check, Banner, ConfirmDialog, useToast } from '../components/ui';
-import { Play, Square, RefreshCw, Box, Trash2, Copy, MoreVertical, ArrowLeft, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Square, RefreshCw, Box, Trash2, Copy, MoreVertical, ArrowLeft, ChevronUp, ChevronDown, Download } from 'lucide-react';
 import AccConfigForm from '../components/server/AccConfigForm';
 import AcConfigForm from '../components/server/AcConfigForm';
 import EntriesEditor from '../components/server/EntriesEditor';
@@ -124,7 +124,12 @@ export default function ServerDetailPage() {
           <div className="relative">
             <Button variant="ghost" size="sm" icon={<MoreVertical size={14} />} onClick={() => setMoreOpen(!moreOpen)} aria-label="More actions" />
             {moreOpen && (
-              <div className="absolute right-0 mt-1 w-40 bg-card-2 border border-border rounded-lg shadow-xl z-20 py-1">
+              <div className="absolute right-0 mt-1 w-44 bg-card-2 border border-border rounded-lg shadow-xl z-20 py-1">
+                <button className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center gap-2"
+                        onClick={() => { setMoreOpen(false); window.open(`/api/servers/${server.id}/export-config`, '_blank'); }}
+                        title="Download the generated config files as a zip (cfg/ layout)">
+                  <Download size={13} /> Export config
+                </button>
                 <button className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-accent flex items-center gap-2"
                         onClick={() => { setMoreOpen(false); setConfirmDelete(true); }}>
                   <Trash2 size={13} /> Delete server
