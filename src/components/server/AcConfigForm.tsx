@@ -199,6 +199,13 @@ export default function AcConfigForm({ server, disabled, onSave }: { server: Gam
             <Field label="Listener port (manager)" hint="UDP_PLUGIN_ADDRESS port"><Input disabled type="number" value={server.ports.pluginListen ?? (server.ports.game + 101)} /></Field>
             <Field label="Forward plugin traffic to" hint="optional ip:port for sTracker etc."><Input disabled={disabled || cfg.telemetry?.enabled === false} value={cfg.telemetry?.forwardTo || ''} onChange={(e) => set('telemetry.forwardTo', e.target.value)} placeholder="192.168.1.50:12000" /></Field>
           </div>
+          {cfg.telemetry?.enabled === false && (
+            <div className="grid md:grid-cols-3 gap-3 pt-1">
+              <Field label="UDP plugin address" hint="UDP_PLUGIN_ADDRESS — manual plugin target"><Input disabled={disabled} value={S.udpPluginAddress || ''} onChange={(e) => set('server.udpPluginAddress', e.target.value)} placeholder="127.0.0.1:11000" /></Field>
+              <Field label="UDP plugin local port" hint="UDP_PLUGIN_LOCAL_PORT"><Input disabled={disabled} type="number" value={S.udpPluginLocalPort ?? 0} onChange={(e) => set('server.udpPluginLocalPort', +e.target.value)} /></Field>
+              <Field label="Auth plugin address" hint="AUTH_PLUGIN_ADDRESS"><Input disabled={disabled} value={S.authPluginAddress || ''} onChange={(e) => set('server.authPluginAddress', e.target.value)} placeholder="127.0.0.1:12000" /></Field>
+            </div>
+          )}
         </div>
       </Card>
 

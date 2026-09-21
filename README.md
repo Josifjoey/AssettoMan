@@ -61,6 +61,32 @@ docker run -d --name AssettoMan \
 
 Recommended hybrid: tunnel for the manager + public page, port-forward only the game ports.
 
+## Run on Windows (no Docker / no unraid)
+
+The backend serves the built UI itself, so it's a single process:
+
+```bat
+npm install && cd server && npm install && cd ..
+npm run build
+npm run server     :: UI + API on http://localhost:3010
+```
+
+(or just run `start-windows.bat`, which does all of this)
+
+Then in **New Server → Runtime → Local**:
+
+| Type | Put the exe at |
+|---|---|
+| `ac` / `ac_modded` | `<data>/servers/<id>/serverfiles/acServer.exe` (+ `content/` folders) |
+| `assettoserver` | `<data>/servers/<id>/serverfiles/AssettoServer.exe` (from `assetto-server-win-x64.zip`) |
+| `acc` | `<data>/servers/<id>/acc/accServer.exe` |
+
+The game process runs detached with its console output appended to
+`<data>/servers/<id>/run/console.log` and a `run.pid` file — so it keeps
+running if you restart the manager, and the manager still shows status/logs
+and can stop it (taskkill by PID, verified by exe name to avoid PID reuse).
+Live telemetry works on localhost — no forwarding needed.
+
 ## Development
 
 ```bash
